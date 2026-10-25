@@ -1,0 +1,26 @@
+# TrueNAS SCALE — Custom App "teleprompter" (tele.johorstudio.com)
+# Code:  /mnt/ssd/teleprompter/server   (server/ folder of this repo)
+# Data:  /mnt/ssd/teleprompter/data     (SQLite tele.db)
+# Env:   /mnt/ssd/teleprompter/.env     (copy of deploy/.env.example, NOT in git)
+# Cloudflare tunnel m10: tele.johorstudio.com -> http://192.168.0.100:8130
+services:
+  teleprompter:
+    image: python:3.13-alpine
+    restart: unless-stopped
+    command: ["python", "-u", "/app/app.py"]
+    env_file:
+      - /mnt/ssd/teleprompter/.env
+    environment:
+      DB_PATH: /data/tele.db
+      PORT: "8000"
+      TZ: Asia/Kuala_Lumpur
+    ports:
+      - "8130:8000"
+    volumes:
+      - /mnt/ssd/teleprompter/server:/app:ro
+      - /mnt/ssd/teleprompter/data:/data
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request;urllib.request.urlopen('http://127.0.0.1:8000/healthz')"]
+      interval: 30s
+      timeout: 5s
+      retries: 3

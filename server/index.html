@@ -1,0 +1,173 @@
+<!doctype html>
+<html lang="ms">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Teleprompter — Johor Studio</title>
+<meta name="description" content="Hantar skrip teleprompter untuk acara anda bersama Johor Studio.">
+<style>
+:root{--bg:#0d0d0f;--card:#17171b;--line:#2a2a31;--text:#f2f2f4;--mute:#9a9aa6;--acc:#f5c542;--cue:#4fc3f7;--err:#ff6b6b;--ok:#5ad08a}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--text);font:16px/1.5 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif}
+.wrap{max-width:860px;margin:0 auto;padding:28px 16px 60px}
+header{display:flex;align-items:center;gap:12px;margin-bottom:22px}
+.logo{width:40px;height:40px;border-radius:10px;background:var(--acc);color:#111;display:grid;place-items:center;font-weight:800}
+h1{font-size:22px;margin:0}
+header p{margin:0;color:var(--mute);font-size:14px}
+.tabs{display:flex;gap:6px;margin-bottom:14px}
+.tab{flex:1;padding:12px;border:1px solid var(--line);background:var(--card);color:var(--mute);border-radius:10px;font-size:15px;cursor:pointer}
+.tab.on{color:#111;background:var(--acc);border-color:var(--acc);font-weight:600}
+.card{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:20px}
+label{display:block;font-size:13px;color:var(--mute);margin:14px 0 6px}
+input,textarea{width:100%;background:#0f0f12;color:var(--text);border:1px solid var(--line);border-radius:9px;padding:11px 12px;font:inherit}
+input:focus,textarea:focus{outline:2px solid var(--acc);border-color:transparent}
+textarea{min-height:340px;resize:vertical;font-size:17px;line-height:1.6}
+.row{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+@media(max-width:600px){.row{grid-template-columns:1fr}}
+button.btn{margin-top:16px;padding:12px 18px;border:0;border-radius:10px;background:var(--acc);color:#111;font-weight:700;font-size:15px;cursor:pointer}
+button.ghost{background:transparent;color:var(--text);border:1px solid var(--line)}
+button:disabled{opacity:.5;cursor:wait}
+.hint{font-size:13px;color:var(--mute);margin-top:8px}
+.hint code{background:#222;padding:1px 5px;border-radius:4px;color:var(--text)}
+.msg{margin-top:14px;padding:12px 14px;border-radius:10px;display:none}
+.msg.err{display:block;background:#3a1717;color:#ffd0d0}
+.msg.ok{display:block;background:#123222;color:#c8f5d9}
+.code{font-size:44px;letter-spacing:10px;font-weight:800;color:var(--acc);text-align:center;margin:10px 0}
+.codein{font-size:28px;letter-spacing:10px;text-align:center;max-width:260px}
+.preview{background:#000;border-radius:10px;padding:18px 22px;margin-top:14px;font-size:22px;line-height:1.5;max-height:340px;overflow:auto;white-space:pre-wrap}
+.preview b{color:#fff}.preview .cue{color:var(--cue)}
+.hidden{display:none}
+a{color:var(--acc)}
+.meta{color:var(--mute);font-size:13px}
+footer{margin-top:30px;text-align:center;color:var(--mute);font-size:13px}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <div class="logo">JS</div>
+    <div><h1>Skrip Teleprompter</h1><p>Johor Studio — hantar skrip untuk dibaca di teleprompter pada hari acara</p></div>
+  </header>
+
+  <div class="tabs">
+    <button class="tab on" data-tab="new">Hantar skrip baru</button>
+    <button class="tab" data-tab="open">Buka skrip (kod 6 digit)</button>
+  </div>
+
+  <!-- NEW -->
+  <section id="tab-new" class="card">
+    <form id="fNew">
+      <label>Tajuk / Nama acara</label>
+      <input name="title" maxlength="200" required placeholder="cth: Majlis Konvokesyen Tadika ABC 2026">
+      <div class="row">
+        <div><label>Nama anda</label><input name="name" maxlength="120" required></div>
+        <div><label>Email (kod akan dihantar ke sini)</label><input name="email" type="email" maxlength="200" required></div>
+      </div>
+      <label>Skrip</label>
+      <textarea name="content" required placeholder="Tampal skrip di sini..."></textarea>
+      <div class="hint">Format ringkas: <code>**teks tebal**</code> untuk penekanan, <code>[CUE: tepuk tangan]</code> untuk arahan (berwarna biru, bukan untuk dibaca). Baris kosong = perenggan baru.</div>
+      <button class="btn" type="submit">Hantar skrip</button>
+      <div class="msg" id="mNew"></div>
+    </form>
+    <div id="done" class="hidden" style="text-align:center">
+      <p>Skrip diterima. Kod anda:</p>
+      <div class="code" id="doneCode"></div>
+      <p class="meta">Kod ini juga telah dihantar ke email anda. Simpan kod ini — guna untuk buka &amp; edit skrip, dan berikan kepada krew kami pada hari acara.</p>
+      <button class="btn" id="doneOpen">Buka &amp; edit skrip</button>
+      <button class="btn ghost" id="doneAgain">Hantar skrip lain</button>
+    </div>
+  </section>
+
+  <!-- OPEN -->
+  <section id="tab-open" class="card hidden">
+    <form id="fOpen">
+      <label>Masukkan kod 6 digit</label>
+      <input class="codein" name="code" inputmode="numeric" pattern="\d{6}" maxlength="6" required autocomplete="off">
+      <button class="btn" type="submit">Buka</button>
+      <div class="msg" id="mOpen"></div>
+    </form>
+    <details style="margin-top:18px">
+      <summary class="meta" style="cursor:pointer">Lupa kod?</summary>
+      <form id="fForgot">
+        <label>Email yang digunakan semasa hantar skrip</label>
+        <input name="email" type="email" required>
+        <button class="btn ghost" type="submit">Hantar semula kod ke email</button>
+        <div class="msg" id="mForgot"></div>
+      </form>
+    </details>
+  </section>
+
+  <!-- EDIT -->
+  <section id="tab-edit" class="card hidden">
+    <div class="meta">Kod <b id="eCode" style="color:var(--acc)"></b> · <span id="eMeta"></span></div>
+    <form id="fEdit">
+      <label>Tajuk</label>
+      <input name="title" maxlength="200">
+      <label>Skrip</label>
+      <textarea name="content" required></textarea>
+      <div class="hint">Format: <code>**tebal**</code> · <code>[CUE: arahan]</code></div>
+      <button class="btn" type="submit">Simpan perubahan</button>
+      <button class="btn ghost" type="button" id="btnPrev">Pratonton teleprompter</button>
+      <div class="msg" id="mEdit"></div>
+      <div class="preview hidden" id="prev"></div>
+    </form>
+  </section>
+
+  <footer>© Johor Studio · <a href="https://johorstudio.com">johorstudio.com</a></footer>
+</div>
+<script>
+const $=s=>document.querySelector(s);
+function tab(t){
+  document.querySelectorAll('.tab').forEach(b=>b.classList.toggle('on',b.dataset.tab===t));
+  ['new','open','edit'].forEach(x=>$('#tab-'+x).classList.toggle('hidden',x!==t));
+}
+document.querySelectorAll('.tab').forEach(b=>b.onclick=()=>{tab(b.dataset.tab);history.replaceState(null,'','/')});
+function msg(el,text,ok){el.className='msg '+(ok?'ok':'err');el.textContent=text}
+async function api(method,url,body){
+  const r=await fetch(url,{method,headers:{'Content-Type':'application/json'},body:body?JSON.stringify(body):undefined});
+  const j=await r.json().catch(()=>({}));
+  if(!r.ok) throw new Error(j.error||('Ralat '+r.status));
+  return j;
+}
+function esc(s){return s.replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]))}
+function render(s){return esc(s).replace(/\*\*(.+?)\*\*/g,'<b>$1</b>').replace(/\[(?:CUE:?\s*)?([^\]]+)\]/gi,'<span class="cue">[$1]</span>')}
+
+$('#fNew').onsubmit=async e=>{
+  e.preventDefault();const f=e.target,b=f.querySelector('button');b.disabled=true;
+  try{
+    const d=Object.fromEntries(new FormData(f));
+    const j=await api('POST','/api/scripts',d);
+    f.classList.add('hidden');$('#done').classList.remove('hidden');$('#doneCode').textContent=j.code;
+    $('#doneOpen').onclick=()=>load(j.code);
+    f.reset();
+  }catch(err){msg($('#mNew'),err.message)}finally{b.disabled=false}
+};
+$('#doneAgain').onclick=()=>{$('#done').classList.add('hidden');$('#fNew').classList.remove('hidden');$('#mNew').className='msg'};
+$('#fOpen').onsubmit=e=>{e.preventDefault();load(e.target.code.value.trim())};
+$('#fForgot').onsubmit=async e=>{
+  e.preventDefault();
+  try{await api('POST','/api/forgot',{email:e.target.email.value});msg($('#mForgot'),'Jika email ini berdaftar, kod telah dihantar. Semak inbox/spam.',true)}
+  catch(err){msg($('#mForgot'),err.message)}
+};
+let cur=null;
+async function load(code){
+  try{
+    const j=await api('GET','/api/scripts/'+encodeURIComponent(code));
+    cur=j.code;tab('edit');history.replaceState(null,'','/s/'+j.code);
+    $('#eCode').textContent=j.code;
+    $('#eMeta').textContent=j.title+' · '+j.name+' · dikemaskini '+new Date(j.updated*1000).toLocaleString('ms-MY');
+    $('#fEdit').title.value=j.title;$('#fEdit').content.value=j.content;$('#mEdit').className='msg';
+  }catch(err){tab('open');msg($('#mOpen'),err.message)}
+}
+$('#fEdit').onsubmit=async e=>{
+  e.preventDefault();const f=e.target,b=f.querySelector('button');b.disabled=true;
+  try{const j=await api('PUT','/api/scripts/'+cur,{title:f.title.value,content:f.content.value});
+    $('#eMeta').textContent=j.title+' · '+j.name+' · dikemaskini '+new Date(j.updated*1000).toLocaleString('ms-MY');
+    msg($('#mEdit'),'Disimpan.',true)}
+  catch(err){msg($('#mEdit'),err.message)}finally{b.disabled=false}
+};
+$('#btnPrev').onclick=()=>{const p=$('#prev');p.classList.toggle('hidden');p.innerHTML=render($('#fEdit').content.value)};
+const m=location.pathname.match(/^\/s\/(\d{6})/);if(m)load(m[1]);
+</script>
+</body>
+</html>

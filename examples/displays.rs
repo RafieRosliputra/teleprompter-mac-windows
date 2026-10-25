@@ -1,0 +1,1 @@
+fn main(){ for d in display_info::DisplayInfo::all().unwrap(){ println!("{} | {} | {}x{} @{},{} scale {} primary {} builtin {}", d.name, d.friendly_name, d.width, d.height, d.x, d.y, d.scale_factor, d.is_primary, d.is_builtin); } }
