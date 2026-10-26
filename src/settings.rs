@@ -37,6 +37,10 @@ pub struct Settings {
     /// Main-window script uses the exact same layout as screen 2
     /// (same line breaks, margins, alignment), scaled to fit.
     pub match_main: bool,
+    /// Show the phone-remote QR card (bottom right of the main window).
+    pub show_qr: bool,
+    /// Random id of the internet-relay session (in the QR link).
+    pub remote_session: String,
 }
 
 impl Default for Settings {
@@ -59,6 +63,8 @@ impl Default for Settings {
             admin_token: String::new(),
             default_speed: 6,
             match_main: false,
+            show_qr: true,
+            remote_session: String::new(),
         }
     }
 }

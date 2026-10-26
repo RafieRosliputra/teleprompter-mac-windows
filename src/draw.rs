@@ -74,6 +74,17 @@ impl RowMap {
         (self.y0[i], self.h[i])
     }
 
+    /// 0-based row index at y, and the number of rows.
+    pub fn row_index(&self, y: f32) -> (usize, usize) {
+        (self.row_at_y(y), self.y0.len())
+    }
+
+    /// Centre y of the row at y.
+    pub fn row_center_at_y(&self, y: f32) -> f32 {
+        let i = self.row_at_y(y);
+        self.y0[i] + self.h[i] * 0.5
+    }
+
     pub fn first_row_center(&self) -> f32 {
         self.y0[0] + self.h[0] * 0.5
     }

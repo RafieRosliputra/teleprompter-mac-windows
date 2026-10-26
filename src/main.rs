@@ -12,6 +12,7 @@
 mod draw;
 mod markup;
 mod net;
+mod remote;
 mod settings;
 
 use std::sync::{Arc, mpsc};
@@ -186,6 +187,18 @@ struct App {
     loaded_title: String,
     tx: mpsc::Sender<NetMsg>,
     rx: mpsc::Receiver<NetMsg>,
+
+    // phone remote
+    remote: remote::Handle,
+    /// Local link (Tailscale / Wi-Fi) and its QR.
+    local_url: String,
+    local_qr: Option<(Vec<bool>, usize)>,
+    /// Internet (relay) link and its QR.
+    relay_link: String,
+    relay_qr: Option<(Vec<bool>, usize)>,
+    qr_internet: bool,
+    layout_key: u64,
+    layout_ver: u64,
 }
 
 const SAMPLE: &str = "Selamat datang ke JohorStudio Teleprompter.\n\n\
@@ -210,7 +223,12 @@ impl App {
         }
         let saved_settings = serde_json::to_string(&s).unwrap_or_default();
         let psize = displays.get(s.monitor).map(|d| d.size).unwrap_or(vec2(1920.0, 1080.0));
-        Self {
+        let local_url = format!(
+            "http://{}:{}",
+            remote::best_ip().map(|ip| ip.to_string()).unwrap_or_else(|| "localhost".into()),
+            remote::HTTP_PORT
+        );
+        let mut app = Self {
             spans: markup::parse(&script),
             script,
             script_dirty: false,
@@ -238,7 +256,262 @@ impl App {
             loaded_title: String::new(),
             tx,
             rx,
+            remote: remote::start(),
+            local_qr: remote::qr(&local_url),
+            local_url,
+            relay_link: String::new(),
+            relay_qr: None,
+            qr_internet: true,
+            layout_key: 0,
+            layout_ver: 0,
+        };
+        app.set_relay();
+        app
+    }
+
+    // ------------------------------------------------------------ phone remote
+
+    /// (Re)point the internet relay at this session.
+    fn set_relay(&mut self) {
+        if self.s.remote_session.len() < 16 {
+            self.s.remote_session = remote::new_session();
         }
+        let base = self.s.server_url.trim_end_matches('/').to_string();
+        self.relay_link = format!("{base}/r/{}", self.s.remote_session);
+        self.relay_qr = remote::qr(&self.relay_link);
+        let ws = base.replacen("https://", "wss://", 1).replacen("http://", "ws://", 1);
+        let mut g = self.remote.lock().unwrap();
+        g.relay_url = format!("{ws}/relay/mac/{}", self.s.remote_session);
+        g.relay_gen += 1;
+    }
+
+    fn remote_cmds(&mut self, ctx: &egui::Context, pmap: &RowMap, line_h: f32) {
+        let cmds = {
+            let mut g = self.remote.lock().unwrap();
+            if g.ctx.is_none() {
+                g.ctx = Some(ctx.clone());
+            }
+            std::mem::take(&mut g.cmds)
+        };
+        let now = ctx.input(|i| i.time);
+        for c in cmds {
+            let base = self.glide.map(|g| g.to).unwrap_or(self.scroll);
+            match c {
+                remote::Cmd::Toggle => self.toggle_play(),
+                remote::Cmd::Slower => {
+                    self.speed_level = (self.speed_level - 1).max(-20);
+                    self.paused = false;
+                }
+                remote::Cmd::Faster => {
+                    self.speed_level = (self.speed_level + 1).min(40);
+                    self.paused = false;
+                }
+                remote::Cmd::Stop => self.speed_level = 0,
+                remote::Cmd::Top => {
+                    self.glide_to(0.0, now);
+                    self.speed_level = 0;
+                }
+                remote::Cmd::LineUp => self.glide_to(base - line_h, now),
+                remote::Cmd::LineDown => self.glide_to(base + line_h, now),
+                remote::Cmd::DefaultSpeed { v } => self.s.default_speed = v.clamp(1, 20),
+                remote::Cmd::Font { delta } => {
+                    self.s.font_size = (self.s.font_size + delta).clamp(30.0, 200.0)
+                }
+                remote::Cmd::ScrollTo { y } => {
+                    if y.is_finite() {
+                        self.glide = None;
+                        self.scroll = y;
+                        self.follow = true;
+                    }
+                }
+                remote::Cmd::Jump { y } => {
+                    if y.is_finite() {
+                        self.glide_to(pmap.row_center_at_y(y), now);
+                        self.follow = true;
+                    }
+                }
+            }
+        }
+    }
+
+    /// Hand the phone the screen-2 rows (when they change) and the live state.
+    fn remote_publish(&mut self, pgal: &Galley, pmap: &RowMap) {
+        use std::hash::{Hash, Hasher};
+        let mut hs = std::collections::hash_map::DefaultHasher::new();
+        self.script.hash(&mut hs);
+        for v in [
+            self.s.font_size,
+            self.s.line_spacing,
+            self.s.margin_left,
+            self.s.margin_right,
+            self.s.read_line,
+            self.prompter_size.x,
+            self.prompter_size.y,
+        ] {
+            v.to_bits().hash(&mut hs);
+        }
+        (self.s.align as u8).hash(&mut hs);
+        let key = hs.finish();
+        let mut layout = None;
+        if key != self.layout_key {
+            self.layout_key = key;
+            self.layout_ver += 1;
+            layout = Some(self.layout_json(pgal));
+        }
+        let (row, rows) = pmap.row_index(self.scroll);
+        let state = format!(
+            r#"{{"t":"state","ver":{},"y":{:.1},"spd":{},"paused":{},"def":{},"fs":{:.0},"row":{},"rows":{},"title":{}}}"#,
+            self.layout_ver,
+            self.scroll,
+            self.speed_level,
+            self.paused,
+            self.s.default_speed,
+            self.s.font_size,
+            row + 1,
+            rows,
+            serde_json::to_string(&self.loaded_title).unwrap_or_else(|_| "\"\"".into()),
+        );
+        let mut g = self.remote.lock().unwrap();
+        if let Some(l) = layout {
+            g.layout = l;
+            g.layout_ver = self.layout_ver;
+        }
+        if g.state != state {
+            g.state = state;
+        }
+    }
+
+    fn layout_json(&self, g: &Galley) -> String {
+        let text = &g.job.text;
+        let byte_of: Vec<usize> = text.char_indices().map(|(b, _)| b).collect();
+        let color_at = |ci: usize| -> Color32 {
+            let b = byte_of.get(ci).copied().unwrap_or(usize::MAX);
+            g.job
+                .sections
+                .iter()
+                .find(|s| b >= s.byte_range.start.0 && b < s.byte_range.end.0)
+                .map(|s| s.format.color)
+                .unwrap_or(Color32::WHITE)
+        };
+        let mut rows = Vec::with_capacity(g.rows.len());
+        let mut ci = 0usize;
+        for r in &g.rows {
+            let mut segs: Vec<(String, Color32)> = Vec::new();
+            for gl in &r.row.glyphs {
+                let col = color_at(ci);
+                match segs.last_mut() {
+                    Some((s, c)) if *c == col => s.push(gl.chr),
+                    _ => segs.push((gl.chr.to_string(), col)),
+                }
+                ci += 1;
+            }
+            if r.ends_with_newline {
+                ci += 1;
+            }
+            let s: Vec<serde_json::Value> = segs
+                .into_iter()
+                .map(|(t, c)| serde_json::json!([t, format!("#{:02x}{:02x}{:02x}", c.r(), c.g(), c.b())]))
+                .collect();
+            rows.push(serde_json::json!({"y": r.pos.y, "h": r.row.size.y, "s": s}));
+        }
+        let align = match self.s.align {
+            TextAlign::Left => "left",
+            TextAlign::Center => "center",
+            TextAlign::Right => "right",
+        };
+        let body = serde_json::json!({
+            "w": self.prompter_size.x, "h": self.prompter_size.y,
+            "read": self.s.read_line, "ml": self.s.margin_left, "mr": self.s.margin_right,
+            "align": align, "fs": self.s.font_size, "rows": rows,
+        })
+        .to_string();
+        // "t" first: the relay recognises the message type from its start.
+        format!(r#"{{"t":"layout","ver":{},{}"#, self.layout_ver, &body[1..])
+    }
+
+    /// QR card, bottom right of the main window.
+    fn qr_card(&mut self, ctx: &egui::Context) {
+        if !self.s.show_qr {
+            return;
+        }
+        let (relay_ok, phones, err) = {
+            let g = self.remote.lock().unwrap();
+            (g.relay_ok, g.local_clients + g.relay_clients, g.error.clone())
+        };
+        #[allow(deprecated)]
+        egui::Area::new(egui::Id::new("remote-qr"))
+            .anchor(egui::Align2::RIGHT_BOTTOM, vec2(-14.0, -14.0))
+            .order(egui::Order::Foreground)
+            .show(ctx, |ui| {
+                egui::Frame::popup(ui.style())
+                    .fill(Color32::from_rgb(23, 23, 27))
+                    .inner_margin(12.0)
+                    .show(ui, |ui| {
+                        ui.set_width(250.0);
+                        ui.horizontal(|ui| {
+                            ui.label(egui::RichText::new("📱 Remote telefon").strong());
+                            ui.with_layout(egui::Layout::right_to_left(Align::Center), |ui| {
+                                if ui.small_button("✖").on_hover_text("Sembunyi (buka semula: 📱 Remote di atas)").clicked() {
+                                    self.s.show_qr = false;
+                                }
+                            });
+                        });
+                        ui.horizontal(|ui| {
+                            ui.selectable_value(&mut self.qr_internet, true, "Internet");
+                            ui.selectable_value(&mut self.qr_internet, false, "Tempatan");
+                        });
+                        let (link, qr) = if self.qr_internet {
+                            (self.relay_link.clone(), self.relay_qr.as_ref())
+                        } else {
+                            (self.local_url.clone(), self.local_qr.as_ref())
+                        };
+                        let side = 170.0;
+                        let (rect, _) = ui.allocate_exact_size(vec2(side, side), Sense::hover());
+                        let p = ui.painter_at(rect);
+                        p.rect_filled(rect, CornerRadius::same(6), Color32::WHITE);
+                        if let Some((cells, w)) = qr {
+                            let n = *w as f32 + 4.0; // quiet zone of 2 modules
+                            let m = side / n;
+                            for (i, dark) in cells.iter().enumerate() {
+                                if *dark {
+                                    let (x, y) = ((i % w) as f32 + 2.0, (i / w) as f32 + 2.0);
+                                    p.rect_filled(
+                                        Rect::from_min_size(rect.min + vec2(x * m, y * m), vec2(m + 0.3, m + 0.3)),
+                                        CornerRadius::ZERO,
+                                        Color32::BLACK,
+                                    );
+                                }
+                            }
+                        }
+                        ui.add(egui::Label::new(egui::RichText::new(&link).small().color(Color32::from_rgb(245, 197, 66))).wrap());
+                        let (dot, msg) = if self.qr_internet {
+                            if relay_ok {
+                                (Color32::from_rgb(90, 208, 138), "Relay internet aktif".to_string())
+                            } else {
+                                (Color32::from_rgb(255, 107, 107), "Relay belum bersambung (perlu internet)".to_string())
+                            }
+                        } else if let Some(e) = &err {
+                            (Color32::from_rgb(255, 107, 107), e.clone())
+                        } else {
+                            (Color32::from_rgb(90, 208, 138), "Tailscale / WiFi sama".to_string())
+                        };
+                        ui.horizontal(|ui| {
+                            let (r, _) = ui.allocate_exact_size(vec2(8.0, 8.0), Sense::hover());
+                            ui.painter().circle_filled(r.center(), 4.0, dot);
+                            ui.small(msg);
+                        });
+                        ui.small(format!("{phones} telefon bersambung"));
+                        if self.qr_internet
+                            && ui
+                                .small_button("⟳ Jana QR baru")
+                                .on_hover_text("Telefon lama terputus; imbas QR baru")
+                                .clicked()
+                        {
+                            self.s.remote_session = remote::new_session();
+                            self.set_relay();
+                        }
+                    });
+            });
     }
 
     fn align(&self) -> Align {
@@ -592,6 +865,8 @@ impl App {
             ui.toggle_value(&mut self.edit_mode, "✏ Edit skrip");
             ui.toggle_value(&mut self.s.match_main, "⧉ Duplicate Skrin 2")
                 .on_hover_text("Window kiri ikut Skrin 2 sebiji: baris, margin & gerakan sama");
+            ui.toggle_value(&mut self.s.show_qr, "📱 Remote")
+                .on_hover_text("Tunjuk QR untuk kawal dari telefon");
             if ui.button("📂 Buka fail").clicked() {
                 if let Some(path) = rfd::FileDialog::new()
                     .add_filter("Teks", &["txt", "md"])
@@ -1007,6 +1282,7 @@ impl eframe::App for App {
         let line_h = self.s.font_size * self.s.line_spacing;
 
         self.handle_keys(&ctx, line_h);
+        self.remote_cmds(&ctx, &pmap, line_h);
         let dt = ctx.input(|i| i.stable_dt).min(0.1);
         let min = pmap.first_row_center();
         let max = (pmap.height - line_h * 0.5).max(min);
@@ -1029,6 +1305,7 @@ impl eframe::App for App {
         if self.scroll >= max && self.speed_level > 0 {
             self.speed_level = 0;
         }
+        self.remote_publish(&pgal, &pmap);
 
         if self.prompter_open {
             self.show_prompter(&ctx);
@@ -1064,6 +1341,8 @@ impl eframe::App for App {
         egui::CentralPanel::default_margins().show(ui, |ui| {
             self.script_view(ui, &pmap);
         });
+
+        self.qr_card(&ctx);
 
         let now = ctx.input(|i| i.time);
         self.autosave(now);

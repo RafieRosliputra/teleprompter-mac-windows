@@ -238,6 +238,167 @@ def access_email(token):
         return None
 
 
+# ---------------------------------------------------------------- phone-remote relay
+# The Mac app connects OUT to /relay/mac/<session>; phones open /r/<session>
+# (page) and connect to /relay/phone/<session>. Mac messages (layout/state)
+# fan out to the phones, phone commands go to the Mac. Minimal RFC 6455.
+SID_RE = re.compile(r"^[a-z0-9]{16,64}$")
+_WS_GUID = "258EAFA5-E914-47DA-95CA-C5AB0DC85B11"
+MAX_PHONES = 10
+_relay = {}  # sid -> {"mac": WS|None, "phones": set, "layout": str|None, "state": str|None}
+_relay_lock = threading.Lock()
+
+
+class WS:
+    def __init__(self, handler):
+        self.rfile = handler.rfile
+        self.sock = handler.connection
+        self.lock = threading.Lock()
+        self.alive = True
+
+    def send(self, text):
+        data = text.encode("utf-8")
+        n = len(data)
+        if n < 126:
+            head = bytes([0x81, n])
+        elif n < 65536:
+            head = bytes([0x81, 126]) + n.to_bytes(2, "big")
+        else:
+            head = bytes([0x81, 127]) + n.to_bytes(8, "big")
+        try:
+            with self.lock:
+                self.sock.sendall(head + data)
+        except OSError:
+            self.alive = False
+
+    def _control(self, op, payload=b""):
+        try:
+            with self.lock:
+                self.sock.sendall(bytes([0x80 | op, len(payload)]) + payload)
+        except OSError:
+            self.alive = False
+
+    def _read(self, n):
+        b = self.rfile.read(n)
+        if len(b) < n:
+            raise ConnectionError("closed")
+        return b
+
+    def recv(self, limit):
+        """Next text message (str), or None when the socket closes."""
+        parts = []
+        size = 0
+        while True:
+            b0, b1 = self._read(2)
+            op, masked, n = b0 & 0x0F, b1 & 0x80, b1 & 0x7F
+            if n == 126:
+                n = int.from_bytes(self._read(2), "big")
+            elif n == 127:
+                n = int.from_bytes(self._read(8), "big")
+            if n > limit or size + n > limit:
+                return None
+            mask = self._read(4) if masked else None
+            data = self._read(n)
+            if mask and n:
+                key = (mask * (n // 4 + 1))[:n]
+                data = (int.from_bytes(data, "big") ^ int.from_bytes(key, "big")).to_bytes(n, "big")
+            if op == 0x8:
+                self._control(0x8)
+                return None
+            if op == 0x9:
+                self._control(0xA, data[:125])
+                continue
+            if op == 0xA:
+                continue
+            parts.append(data)
+            size += n
+            if b0 & 0x80:
+                return b"".join(parts).decode("utf-8", "replace")
+
+    def close(self):
+        if self.alive:
+            self._control(0x8)
+        self.alive = False
+
+
+def _session(sid):
+    return _relay.setdefault(sid, {"mac": None, "phones": set(), "layout": None, "state": None})
+
+
+def _tell_counts(s):
+    mac = s["mac"]
+    if mac:
+        mac.send(f'{{"t":"clients","n":{len(s["phones"])}}}')
+    for p in list(s["phones"]):
+        p.send(f'{{"t":"mac","on":{"true" if mac else "false"}}}')
+
+
+def relay_mac(ws, sid):
+    with _relay_lock:
+        s = _session(sid)
+        old, s["mac"] = s["mac"], ws
+        _tell_counts(s)
+    if old:
+        old.close()
+    try:
+        while True:
+            msg = ws.recv(8_000_000)
+            if msg is None:
+                break
+            kind = msg[:24]
+            with _relay_lock:
+                if '"t":"layout"' in kind:
+                    s["layout"] = msg
+                elif '"t":"state"' in kind:
+                    s["state"] = msg
+                else:
+                    continue
+                phones = list(s["phones"])
+            for p in phones:
+                p.send(msg)
+    except (ConnectionError, OSError, ValueError):
+        pass
+    finally:
+        with _relay_lock:
+            if s["mac"] is ws:
+                s["mac"] = None
+                _tell_counts(s)
+            if not s["mac"] and not s["phones"]:
+                _relay.pop(sid, None)
+
+
+def relay_phone(ws, sid, ip):
+    with _relay_lock:
+        s = _session(sid)
+        if len(s["phones"]) >= MAX_PHONES:
+            ws.close()
+            return
+        s["phones"].add(ws)
+        first = [m for m in (s["layout"], s["state"]) if m]
+        _tell_counts(s)
+    for m in first:
+        ws.send(m)
+    try:
+        while True:
+            msg = ws.recv(4096)
+            if msg is None:
+                break
+            if not msg.startswith('{"cmd":') or limited(("remote", ip), 3000, 60):
+                continue  # pings and junk stay here
+            with _relay_lock:
+                mac = s["mac"]
+            if mac:
+                mac.send(msg)
+    except (ConnectionError, OSError, ValueError):
+        pass
+    finally:
+        with _relay_lock:
+            s["phones"].discard(ws)
+            _tell_counts(s)
+            if not s["mac"] and not s["phones"]:
+                _relay.pop(sid, None)
+
+
 def list_scripts():
     with db() as c:
         rows = c.execute(
@@ -314,6 +475,30 @@ class H(BaseHTTPRequestHandler):
                 return self.send(200, f.read(), "text/html; charset=utf-8")
         if p == "/healthz":
             return self.send(200, {"ok": True})
+        if p.startswith("/r/"):
+            if not SID_RE.match(p[3:]):
+                return self.err(404, "not found")
+            with open(os.path.join(HERE, "remote.html"), "rb") as f:
+                return self.send(200, f.read(), "text/html; charset=utf-8")
+        if p.startswith("/relay/mac/") or p.startswith("/relay/phone/"):
+            role, sid = p[len("/relay/"):].split("/", 1)
+            if not SID_RE.match(sid) or self.headers.get("Upgrade", "").lower() != "websocket":
+                return self.err(400, "websocket only")
+            key = self.headers.get("Sec-WebSocket-Key", "")
+            accept = base64.b64encode(hashlib.sha1((key + _WS_GUID).encode()).digest()).decode()
+            self.send_response(101, "Switching Protocols")
+            self.send_header("Upgrade", "websocket")
+            self.send_header("Connection", "Upgrade")
+            self.send_header("Sec-WebSocket-Accept", accept)
+            self.end_headers()
+            self.wfile.flush()
+            self.close_connection = True
+            ws = WS(self)
+            if role == "mac":
+                relay_mac(ws, sid)
+            else:
+                relay_phone(ws, sid, self.ip())
+            return
         if p == "/admin" or p.startswith("/admin/"):
             if not self.web_admin():
                 return self.send(403, "Akses ditolak.", "text/plain; charset=utf-8")

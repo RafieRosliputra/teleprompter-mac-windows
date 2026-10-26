@@ -13,6 +13,17 @@ Get `JohorStudio-Teleprompter-mac-arm64.zip` from [Releases](../../releases), un
 The app is not notarized: the first time, right-click the app → **Open** → **Open**
 (or run `xattr -dr com.apple.quarantine "/Applications/JohorStudio Teleprompter.app"`).
 
+## Phone remote
+
+Click **📱 Remote** (QR card, bottom right) and scan it with the phone:
+
+- **Internet**: `https://tele.johorstudio.com/r/<session>`. The app connects out to the relay on the script
+  server, so the phone needs no Tailscale and can be on any network. HTTPS, so keep-awake and fullscreen work.
+  "⟳ Jana QR baru" makes a new session (old phones are cut off).
+- **Tempatan**: `http://<mac-ip>:8140` (Tailscale 100.x or the same Wi-Fi; WebSocket on 8141). Works without internet.
+
+The phone draws the same rows as screen 2. Drag the preview to move the text, tap a line to glide to it.
+
 ## Build
 
 ```sh
