@@ -173,6 +173,8 @@ struct App {
     move_job: Option<MoveJob>,
 
     main_offset: f32,
+    main_target: f32,
+    main_glide: Option<Glide>,
     follow: bool,
     edit_mode: bool,
 
@@ -223,6 +225,8 @@ impl App {
             prompter_fullscreen_applied: None,
             move_job: None,
             main_offset: 0.0,
+            main_target: f32::NAN,
+            main_glide: None,
             follow: true,
             edit_mode: false,
             displays,
@@ -579,6 +583,8 @@ impl App {
             }
             ui.separator();
             ui.toggle_value(&mut self.edit_mode, "✏ Edit skrip");
+            ui.toggle_value(&mut self.s.match_main, "⧉ Duplicate Skrin 2")
+                .on_hover_text("Window kiri ikut Skrin 2 sebiji: baris, margin & gerakan sama");
             if ui.button("📂 Buka fail").clicked() {
                 if let Some(path) = rfd::FileDialog::new()
                     .add_filter("Teks", &["txt", "md"])
@@ -658,18 +664,51 @@ impl App {
                 self.follow = false;
             }
         }
+        let (by, bh) = mmap.row_band(cur_y);
+        let lo = -rect.height() * 0.9;
+        let hi = (mmap.height - rect.height() * 0.1).max(0.0);
         if self.follow {
-            self.main_offset = cur_y - rect.height() * self.s.read_line;
+            if self.s.match_main {
+                // Duplicate mode: identical rows, so follow screen 2 continuously.
+                self.main_glide = None;
+                self.main_offset = cur_y - rect.height() * self.s.read_line;
+            } else {
+                // Hold the current row still on the reading line; when screen 2
+                // reaches the next row here, ease (in/out) to it.
+                let target = (by + bh * 0.5 - rect.height() * self.s.read_line).clamp(lo, hi);
+                let now = ui.input(|i| i.time);
+                if self.main_target.is_nan() || (target - self.main_target).abs() > 0.5 {
+                    self.main_target = target;
+                    let dist = (target - self.main_offset).abs();
+                    self.main_glide = (dist > 0.5).then(|| Glide {
+                        from: self.main_offset,
+                        to: target,
+                        start: now,
+                        dur: (0.3 + dist as f64 / 3000.0).min(0.8),
+                    });
+                }
+                if let Some(g) = self.main_glide {
+                    let t = ((now - g.start) / g.dur) as f32;
+                    self.main_offset = g.from + (g.to - g.from) * ease_in_out(t);
+                    if t >= 1.0 {
+                        self.main_glide = None;
+                    } else {
+                        ui.ctx().request_repaint();
+                    }
+                } else {
+                    self.main_offset = target;
+                }
+            }
+        } else {
+            self.main_glide = None;
+            self.main_target = f32::NAN;
         }
-        self.main_offset = self
-            .main_offset
-            .clamp(-rect.height() * 0.9, (mmap.height - rect.height() * 0.1).max(0.0));
+        self.main_offset = self.main_offset.clamp(lo, hi);
 
         let top = rect.top() - self.main_offset;
         let gpos = pos2(anchor_x, top);
 
         // Current line band.
-        let (by, bh) = mmap.row_band(cur_y);
         painter.rect_filled(
             Rect::from_min_size(pos2(rect.left(), top + by), vec2(rect.width(), bh)),
             CornerRadius::ZERO,
@@ -688,7 +727,8 @@ impl App {
         }
 
         painter.galley(gpos, galley.clone(), Color32::WHITE);
-        draw::reading_arrows(&painter, rect, top + cur_y, 16.0, ARROW, Flip::none(rect));
+        let arrow_y = if self.s.match_main { top + cur_y } else { top + by + bh * 0.5 };
+        draw::reading_arrows(&painter, rect, arrow_y, 16.0, ARROW, Flip::none(rect));
 
         if resp.clicked() {
             if let Some(pp) = resp.interact_pointer_pos() {
