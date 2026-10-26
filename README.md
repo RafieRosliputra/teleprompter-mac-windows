@@ -74,11 +74,19 @@ It's a small Python app (standard library only) with SQLite, running as the True
 (`deploy/truenas-app.yaml`, data in `/mnt/ssd/teleprompter`), published through the Cloudflare tunnel.
 Settings live in `/mnt/ssd/teleprompter/.env` (see `deploy/.env.example`).
 
-## Download (Mac)
+## Download
 
-Get `JohorStudio-Teleprompter-mac-arm64.zip` from [Releases](../../releases) (Apple Silicon), unzip and move
-**JohorStudio Teleprompter.app** to Applications. The app isn't notarized: the first time, right-click it →
-**Open** → **Open**. If macOS asks to allow incoming connections, click **Allow** (needed for the Local remote).
+From [Releases](../../releases):
+
+- **Mac (Apple Silicon)**: `JohorStudio-Teleprompter-mac-arm64.zip`. Unzip and move **JohorStudio Teleprompter.app**
+  to Applications. The app isn't notarized: the first time, right-click it → **Open** → **Open**. If macOS asks to
+  allow incoming connections, click **Allow** (needed for the Local remote).
+- **Windows (64-bit)**: `JohorStudio-Teleprompter-windows-x64.zip`. Unzip and run **JohorStudio Teleprompter.exe**.
+  The exe isn't signed: if SmartScreen warns, click **More info** → **Run anyway**. Allow it through the Windows
+  firewall on private networks for the Local remote.
+
+The Windows zip is built on a Windows machine by GitHub Actions (`.github/workflows/windows.yml`) whenever a release
+is published.
 
 ## Build
 
