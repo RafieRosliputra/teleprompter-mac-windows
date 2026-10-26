@@ -138,15 +138,26 @@ def mail_async(*args):
     threading.Thread(target=send_mail, args=args, daemon=True).start()
 
 
-def code_email(name, title, code):
+def code_email(name, title, code, ms=False):
+    if ms:
+        return (
+            f"Salam {name},\n\n"
+            f"Terima kasih kerana menghantar skrip teleprompter kepada JohorStudio.\n\n"
+            f"Tajuk : {title}\n"
+            f"Kod   : {code}\n\n"
+            f"Simpan kod 6 digit ini. Anda boleh buka dan edit skrip ini bila-bila masa sebelum acara:\n"
+            f"{PUBLIC_URL}/s/{code}\n\n"
+            f"Berikan kod ini kepada krew JohorStudio pada hari acara.\n\n"
+            f"— JohorStudio.com\nhttps://johorstudio.com\n"
+        )
     return (
-        f"Salam {name},\n\n"
-        f"Terima kasih kerana menghantar skrip teleprompter kepada JohorStudio.\n\n"
-        f"Tajuk : {title}\n"
-        f"Kod   : {code}\n\n"
-        f"Simpan kod 6 digit ini. Anda boleh buka dan edit skrip ini bila-bila masa sebelum acara:\n"
+        f"Hi {name},\n\n"
+        f"Thank you for sending your teleprompter script to JohorStudio.\n\n"
+        f"Title : {title}\n"
+        f"Code  : {code}\n\n"
+        f"Keep this 6-digit code. You can open and edit the script any time before the event:\n"
         f"{PUBLIC_URL}/s/{code}\n\n"
-        f"Berikan kod ini kepada krew JohorStudio pada hari acara.\n\n"
+        f"Give this code to the JohorStudio crew on the day of the event.\n\n"
         f"— JohorStudio.com\nhttps://johorstudio.com\n"
     )
 
@@ -458,6 +469,13 @@ class H(BaseHTTPRequestHandler):
         auth = self.headers.get("Authorization", "")
         return bool(ADMIN_TOKEN) and secrets.compare_digest(auth, f"Bearer {ADMIN_TOKEN}")
 
+    def ms(self):
+        """Visitor chose Bahasa Melayu on the page (sent as X-Lang)."""
+        return self.headers.get("X-Lang", "").lower() == "ms"
+
+    def L(self, en, ms):
+        return ms if self.ms() else en
+
     def web_admin(self):
         """Cloudflare Access user allowed into /admin (JWT verified), else None."""
         return access_email(self.headers.get("Cf-Access-Jwt-Assertion", ""))
@@ -503,7 +521,7 @@ class H(BaseHTTPRequestHandler):
             return
         if p == "/admin" or p.startswith("/admin/"):
             if not self.web_admin():
-                return self.send(403, "Akses ditolak.", "text/plain; charset=utf-8")
+                return self.send(403, "Access denied.", "text/plain; charset=utf-8")
             if p.startswith("/admin/api/scripts"):
                 return self.send(200, list_scripts())
             with open(os.path.join(HERE, "admin.html"), "rb") as f:
@@ -516,13 +534,13 @@ class H(BaseHTTPRequestHandler):
             code = self.code_from("/api/scripts/")
             admin = self.is_admin()
             if not admin and limited(("look", self.ip()), 30, 600):
-                return self.err(429, "Terlalu banyak cubaan. Cuba lagi dalam 10 minit.")
+                return self.err(429, self.L("Too many attempts. Try again in 10 minutes.", "Terlalu banyak cubaan. Cuba lagi dalam 10 minit."))
             if not code:
-                return self.err(404, "Kod tidak sah")
+                return self.err(404, self.L("Invalid code", "Kod tidak sah"))
             with db() as c:
                 r = c.execute("SELECT * FROM scripts WHERE code=?", (code,)).fetchone()
             if not r:
-                return self.err(404, "Kod tidak dijumpai")
+                return self.err(404, self.L("Code not found", "Kod tidak dijumpai"))
             return self.send(200, row_public(r))
         self.err(404, "not found")
 
@@ -532,18 +550,18 @@ class H(BaseHTTPRequestHandler):
         try:
             data = self.body()
         except Exception:
-            return self.err(400, "JSON tidak sah")
+            return self.err(400, self.L("Invalid request", "Permintaan tidak sah"))
         if p == "/api/scripts":
             if limited(("new", self.ip()), 20, 3600):
-                return self.err(429, "Terlalu banyak skrip dihantar. Cuba lagi nanti.")
+                return self.err(429, self.L("Too many scripts sent. Try again later.", "Terlalu banyak skrip dihantar. Cuba lagi nanti."))
             title = clean(data.get("title"), 200)
             name = clean(data.get("name"), 120)
             email = clean(data.get("email"), 200).lower()
             content = clean(data.get("content"), MAX_CONTENT)
             if not (title and name and content):
-                return self.err(400, "Sila isi tajuk, nama dan skrip.")
+                return self.err(400, self.L("Please fill in the title, your name and the script.", "Sila isi tajuk, nama dan skrip."))
             if not EMAIL_RE.match(email):
-                return self.err(400, "Email tidak sah.")
+                return self.err(400, self.L("Invalid email.", "Email tidak sah."))
             now = int(time.time())
             with _db_lock, db() as c:
                 code = new_code(c)
@@ -551,18 +569,22 @@ class H(BaseHTTPRequestHandler):
                     "INSERT INTO scripts VALUES(?,?,?,?,?,?,?)",
                     (code, title, name, email, content, now, now),
                 )
-            mail_async(email, f"Kod skrip teleprompter anda: {code}", code_email(name, title, code))
+            mail_async(
+                email,
+                self.L(f"Your teleprompter script code: {code}", f"Kod skrip teleprompter anda: {code}"),
+                code_email(name, title, code, self.ms()),
+            )
             if NOTIFY_EMAIL:
                 mail_async(
                     NOTIFY_EMAIL,
-                    f"[Tele] Skrip baru {code} — {title}",
-                    f"Dari: {name} <{email}>\nKod: {code}\n{PUBLIC_URL}/s/{code}\n\n{content[:2000]}",
+                    f"[Tele] New script {code} — {title}",
+                    f"From: {name} <{email}>\nCode: {code}\n{PUBLIC_URL}/s/{code}\n\n{content[:2000]}",
                 )
             return self.send(201, {"code": code})
         if p == "/api/forgot":
             email = clean(data.get("email"), 200).lower()
             if limited(("forgot", self.ip()), 5, 3600) or limited(("forgot", email), 3, 3600):
-                return self.err(429, "Terlalu banyak cubaan. Cuba lagi nanti.")
+                return self.err(429, self.L("Too many attempts. Try again later.", "Terlalu banyak cubaan. Cuba lagi nanti."))
             if EMAIL_RE.match(email):
                 with db() as c:
                     rows = c.execute(
@@ -572,8 +594,11 @@ class H(BaseHTTPRequestHandler):
                     lines = "\n".join(f"  {r['code']}  —  {r['title']}  ({PUBLIC_URL}/s/{r['code']})" for r in rows)
                     mail_async(
                         email,
-                        "Kod skrip teleprompter anda",
-                        f"Salam,\n\nBerikut kod skrip yang didaftarkan dengan email ini:\n\n{lines}\n\n— JohorStudio.com\n",
+                        self.L("Your teleprompter script codes", "Kod skrip teleprompter anda"),
+                        self.L(
+                            f"Hi,\n\nHere are the script codes registered with this email:\n\n{lines}\n\n— JohorStudio.com\n",
+                            f"Salam,\n\nBerikut kod skrip yang didaftarkan dengan email ini:\n\n{lines}\n\n— JohorStudio.com\n",
+                        ),
                     )
             # Same answer either way: don't reveal which emails exist.
             return self.send(200, {"ok": True})
@@ -586,21 +611,21 @@ class H(BaseHTTPRequestHandler):
             return self.err(404, "not found")
         code = self.code_from("/api/scripts/")
         if not code:
-            return self.err(404, "Kod tidak sah")
+            return self.err(404, self.L("Invalid code", "Kod tidak sah"))
         if not self.is_admin() and limited(("edit", self.ip()), 120, 600):
-            return self.err(429, "Terlalu banyak cubaan.")
+            return self.err(429, self.L("Too many attempts.", "Terlalu banyak cubaan."))
         try:
             data = self.body()
         except Exception:
-            return self.err(400, "JSON tidak sah")
+            return self.err(400, self.L("Invalid request", "Permintaan tidak sah"))
         content = clean(data.get("content"), MAX_CONTENT)
         title = clean(data.get("title"), 200)
         if not content:
-            return self.err(400, "Skrip kosong.")
+            return self.err(400, self.L("The script is empty.", "Skrip kosong."))
         with _db_lock, db() as c:
             r = c.execute("SELECT * FROM scripts WHERE code=?", (code,)).fetchone()
             if not r:
-                return self.err(404, "Kod tidak dijumpai")
+                return self.err(404, self.L("Code not found", "Kod tidak dijumpai"))
             c.execute(
                 "UPDATE scripts SET content=?, title=?, updated=? WHERE code=?",
                 (content, title or r["title"], int(time.time()), code),
@@ -624,7 +649,7 @@ class H(BaseHTTPRequestHandler):
         else:
             return self.err(404, "not found")
         if not code:
-            return self.err(404, "Kod tidak sah")
+            return self.err(404, self.L("Invalid code", "Kod tidak sah"))
         delete_script(code)
         print(f"[admin] {who} deleted {code}", flush=True)
         return self.send(200, {"ok": True})

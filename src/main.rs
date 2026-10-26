@@ -9,6 +9,8 @@
 
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
+#[macro_use]
+mod i18n;
 mod draw;
 mod markup;
 mod net;
@@ -111,7 +113,7 @@ fn list_displays() -> Vec<Disp> {
                         name,
                         pw.round(),
                         ph.round(),
-                        if d.is_primary { " — utama" } else { "" }
+                        if d.is_primary { i18n::t(" — main", " — utama") } else { "" }
                     ),
                     pos: pos2(d.x as f32 / k, d.y as f32 / k),
                     size: vec2(d.width as f32 / k, d.height as f32 / k),
@@ -120,7 +122,7 @@ fn list_displays() -> Vec<Disp> {
             })
             .collect(),
         _ => vec![Disp {
-            label: "1: Skrin utama".into(),
+            label: i18n::t("1: Main screen", "1: Skrin utama").into(),
             pos: Pos2::ZERO,
             size: vec2(1920.0, 1080.0),
             primary: true,
@@ -206,6 +208,14 @@ struct App {
     keep_scroll: Option<f32>,
 }
 
+const SAMPLE_EN: &str = "Welcome to JohorStudio Teleprompter.\n\n\
+Paste your script with **Edit script**, open a .txt file, \
+or load a script from tele.johorstudio.com with its 6-digit code.\n\n\
+[CUE: smile at the camera]\n\n\
+Press the right arrow to start and go faster, the left arrow to slow down or go back. \
+Press Space to play at the default speed or pause.\n\n\
+Click any line on the left to bring it to the reading line on screen 2.";
+
 const SAMPLE: &str = "Selamat datang ke JohorStudio Teleprompter.\n\n\
 Tampal skrip anda dengan butang **Edit skrip**, buka fail .txt, \
 atau muat skrip dari tele.johorstudio.com menggunakan kod 6 digit.\n\n\
@@ -219,7 +229,9 @@ impl App {
         install_fonts(ctx);
         ctx.set_visuals(egui::Visuals::dark());
         let mut s = Settings::load();
-        let script = settings::load_script().unwrap_or_else(|| SAMPLE.to_string());
+        i18n::set_lang(&s.lang);
+        let script = settings::load_script()
+            .unwrap_or_else(|| (if i18n::ms() { SAMPLE } else { SAMPLE_EN }).to_string());
         let (tx, rx) = mpsc::channel();
         let displays = list_displays();
         if s.monitor >= displays.len() || (displays.len() > 1 && displays[s.monitor].primary) {
@@ -339,7 +351,7 @@ impl App {
                     }
                 }
                 remote::Cmd::ListScripts => {
-                    self.status = "Telefon minta senarai skrip…".into();
+                    self.status = i18n::t("Phone asked for the script list…", "Telefon minta senarai skrip…").into();
                     net::fetch_list(
                         self.s.server_url.clone(),
                         self.s.admin_token.clone(),
@@ -358,7 +370,7 @@ impl App {
                         self.keep_scroll = Some(self.scroll);
                         self.load_code(code, ctx);
                     } else {
-                        self.publish_scripts(None, Some("Tiada skrip dari server untuk dimuat semula"));
+                        self.publish_scripts(None, Some(i18n::t("No server script to reload", "Tiada skrip dari server untuk dimuat semula")));
                     }
                 }
             }
@@ -499,16 +511,16 @@ impl App {
                     .show(ui, |ui| {
                         ui.set_width(250.0);
                         ui.horizontal(|ui| {
-                            ui.label(egui::RichText::new("📱 Remote telefon").strong());
+                            ui.label(egui::RichText::new(i18n::t("📱 Phone remote", "📱 Remote telefon")).strong());
                             ui.with_layout(egui::Layout::right_to_left(Align::Center), |ui| {
-                                if ui.small_button("✖").on_hover_text("Sembunyi (buka semula: 📱 Remote di atas)").clicked() {
+                                if ui.small_button("✖").on_hover_text(i18n::t("Hide (show again: 📱 Remote at the top)", "Sembunyi (buka semula: 📱 Remote di atas)")).clicked() {
                                     self.s.show_qr = false;
                                 }
                             });
                         });
                         ui.horizontal(|ui| {
                             ui.selectable_value(&mut self.qr_internet, true, "Internet");
-                            ui.selectable_value(&mut self.qr_internet, false, "Tempatan");
+                            ui.selectable_value(&mut self.qr_internet, false, i18n::t("Local", "Tempatan"));
                         });
                         let (link, qr) = if self.qr_internet {
                             (self.relay_link.clone(), self.relay_qr.as_ref())
@@ -536,25 +548,25 @@ impl App {
                         ui.add(egui::Label::new(egui::RichText::new(&link).small().color(Color32::from_rgb(245, 197, 66))).wrap());
                         let (dot, msg) = if self.qr_internet {
                             if relay_ok {
-                                (Color32::from_rgb(90, 208, 138), "Relay internet aktif".to_string())
+                                (Color32::from_rgb(90, 208, 138), i18n::t("Internet relay active", "Relay internet aktif").to_string())
                             } else {
-                                (Color32::from_rgb(255, 107, 107), "Relay belum bersambung (perlu internet)".to_string())
+                                (Color32::from_rgb(255, 107, 107), i18n::t("Relay not connected (needs internet)", "Relay belum bersambung (perlu internet)").to_string())
                             }
                         } else if let Some(e) = &err {
                             (Color32::from_rgb(255, 107, 107), e.clone())
                         } else {
-                            (Color32::from_rgb(90, 208, 138), "Tailscale / WiFi sama".to_string())
+                            (Color32::from_rgb(90, 208, 138), i18n::t("Tailscale / same Wi-Fi", "Tailscale / WiFi sama").to_string())
                         };
                         ui.horizontal(|ui| {
                             let (r, _) = ui.allocate_exact_size(vec2(8.0, 8.0), Sense::hover());
                             ui.painter().circle_filled(r.center(), 4.0, dot);
                             ui.small(msg);
                         });
-                        ui.small(format!("{phones} telefon bersambung"));
+                        ui.small(tr!("{phones} phone(s) connected", "{phones} telefon bersambung"));
                         if self.qr_internet
                             && ui
-                                .small_button("⟳ Jana QR baru")
-                                .on_hover_text("Telefon lama terputus; imbas QR baru")
+                                .small_button(i18n::t("⟳ New QR", "⟳ Jana QR baru"))
+                                .on_hover_text(i18n::t("Old phones are disconnected; scan the new QR", "Telefon lama terputus; imbas QR baru"))
                                 .clicked()
                         {
                             self.s.remote_session = remote::new_session();
@@ -562,6 +574,18 @@ impl App {
                         }
                     });
             });
+    }
+
+    /// EN / BM switch, top right.
+    fn lang_switch(&mut self, ui: &mut egui::Ui) {
+        for (code, label) in [("ms", "BM"), ("en", "EN")] {
+            let on = self.s.lang == code;
+            if ui.selectable_label(on, label).on_hover_text(if code == "en" { "English" } else { "Bahasa Melayu" }).clicked() && !on {
+                self.s.lang = code.into();
+                i18n::set_lang(code);
+            }
+        }
+        ui.label("🌐");
     }
 
     fn align(&self) -> Align {
@@ -689,7 +713,7 @@ impl App {
         while let Ok(m) = self.rx.try_recv() {
             match m {
                 NetMsg::Script(Ok(sc)) => {
-                    self.status = format!("Dimuat: {} ({}) — kod {}", sc.title, sc.name, sc.code);
+                    self.status = tr!("Loaded: {} ({}) — code {}", "Dimuat: {} ({}) — kod {}", sc.title, sc.name, sc.code);
                     let t = format!("{} — {}", sc.code, sc.title);
                     let same = self.loaded_code.as_deref() == Some(sc.code.as_str());
                     let keep = self.keep_scroll.take().filter(|_| same);
@@ -699,22 +723,22 @@ impl App {
                         self.scroll = y;
                     }
                 }
-                NetMsg::Script(Err(e)) => self.status = format!("Gagal muat skrip: {e}"),
+                NetMsg::Script(Err(e)) => self.status = tr!("Could not load script: {e}", "Gagal muat skrip: {e}"),
                 NetMsg::List(Ok(l)) => {
-                    self.status = format!("{} skrip di server", l.len());
+                    self.status = tr!("{} scripts on the server", "{} skrip di server", l.len());
                     self.list = l;
                     self.publish_scripts(Some(()), None);
                 }
                 NetMsg::List(Err(e)) => {
-                    self.status = format!("Gagal senarai: {e}");
+                    self.status = tr!("Could not load the list: {e}", "Gagal senarai: {e}");
                     self.publish_scripts(None, Some(&e));
                 }
                 NetMsg::Deleted(code, Ok(())) => {
                     self.list.retain(|it| it.code != code);
-                    self.status = format!("Skrip {code} dipadam");
+                    self.status = tr!("Script {code} deleted", "Skrip {code} dipadam");
                     self.publish_scripts(Some(()), None);
                 }
-                NetMsg::Deleted(code, Err(e)) => self.status = format!("Gagal padam {code}: {e}"),
+                NetMsg::Deleted(code, Err(e)) => self.status = tr!("Could not delete {code}: {e}", "Gagal padam {code}: {e}"),
             }
         }
     }
@@ -754,7 +778,7 @@ impl App {
     fn prompter_builder(&self) -> ViewportBuilder {
         let d = self.display();
         ViewportBuilder::default()
-            .with_title("Teleprompter — Skrin 2")
+            .with_title(i18n::t("Teleprompter — Screen 2", "Teleprompter — Skrin 2"))
             .with_position(d.pos + vec2(30.0, 30.0))
             .with_inner_size([960.0, 540.0])
     }
@@ -847,13 +871,13 @@ impl App {
             ui.heading("Teleprompter");
             ui.separator();
             let state = if self.paused {
-                "⏸ Berhenti".to_string()
+                i18n::t("⏸ Paused", "⏸ Berhenti").to_string()
             } else if self.speed_level == 0 {
-                "⏹ Diam".to_string()
+                i18n::t("⏹ Stopped", "⏹ Diam").to_string()
             } else if self.speed_level > 0 {
-                format!("▶ Laju {}x", self.speed_level)
+                tr!("▶ Speed {}x", "▶ Laju {}x", self.speed_level)
             } else {
-                format!("◀ Undur {}x", -self.speed_level)
+                tr!("◀ Reverse {}x", "◀ Undur {}x", -self.speed_level)
             };
             // Fixed-width box so the buttons beside it never shift.
             let (r, _) = ui.allocate_exact_size(vec2(150.0, 26.0), Sense::hover());
@@ -874,22 +898,22 @@ impl App {
                     }
                 })
                 .response
-                .on_hover_text("Laju bila tekan Space");
-            if ui.button("◀").on_hover_text("Perlahan / undur (←)").clicked() {
+                .on_hover_text(i18n::t("Speed when you press Space", "Laju bila tekan Space"));
+            if ui.button("◀").on_hover_text(i18n::t("Slower / reverse (←)", "Perlahan / undur (←)")).clicked() {
                 self.speed_level = (self.speed_level - 1).max(-20);
             }
             let play = if self.is_running() { "⏸" } else { "▶" };
-            if ui.button(play).on_hover_text("Space — main pada laju default / henti").clicked() {
+            if ui.button(play).on_hover_text(i18n::t("Space — play at the default speed / pause", "Space — main pada laju default / henti")).clicked() {
                 self.toggle_play();
             }
-            if ui.button("▶▶").on_hover_text("Laju (→)").clicked() {
+            if ui.button("▶▶").on_hover_text(i18n::t("Faster (→)", "Laju (→)")).clicked() {
                 self.speed_level = (self.speed_level + 1).min(40);
                 self.paused = false;
             }
             if ui.button("⏹ Stop").clicked() {
                 self.speed_level = 0;
             }
-            if ui.button("⏮ Atas").clicked() {
+            if ui.button(i18n::t("⏮ Top", "⏮ Atas")).clicked() {
                 let now = ui.input(|i| i.time);
                 self.glide_to(0.0, now);
                 self.speed_level = 0;
@@ -898,12 +922,12 @@ impl App {
             ui.toggle_value(&mut self.s.flip_h, "⇋ Flip H");
             ui.toggle_value(&mut self.s.flip_v, "⇅ Flip V");
             ui.separator();
-            let label = if self.prompter_open { "Tutup Skrin 2" } else { "Buka Skrin 2" };
+            let label = if self.prompter_open { i18n::t("Close Screen 2", "Tutup Skrin 2") } else { i18n::t("Open Screen 2", "Buka Skrin 2") };
             if ui.button(label).clicked() {
                 self.prompter_open = !self.prompter_open;
                 self.prompter_fullscreen_applied = None;
             }
-            ui.toggle_value(&mut self.s.fullscreen, "⛶ Skrin penuh");
+            ui.toggle_value(&mut self.s.fullscreen, i18n::t("⛶ Fullscreen", "⛶ Skrin penuh"));
             let cur = self.displays.get(self.s.monitor).map(|d| d.label.clone()).unwrap_or_default();
             egui::ComboBox::from_id_salt("monitor")
                 .selected_text(cur)
@@ -913,22 +937,22 @@ impl App {
                         ui.selectable_value(&mut self.s.monitor, i, &d.label);
                     }
                 });
-            if ui.small_button("⟳").on_hover_text("Imbas semula skrin").clicked() {
+            if ui.small_button("⟳").on_hover_text(i18n::t("Rescan displays", "Imbas semula skrin")).clicked() {
                 self.displays = list_displays();
                 if self.s.monitor >= self.displays.len() {
                     self.s.monitor = self.displays.len() - 1;
                 }
             }
             if self.displays.len() < 2 {
-                ui.label(egui::RichText::new("(1 skrin sahaja — Skrin 2 dalam tetingkap)").weak());
+                ui.label(egui::RichText::new(i18n::t("(1 display only — Screen 2 in a window)", "(1 skrin sahaja — Skrin 2 dalam tetingkap)")).weak());
             }
             ui.separator();
-            ui.toggle_value(&mut self.edit_mode, "✏ Edit skrip");
-            ui.toggle_value(&mut self.s.match_main, "⧉ Duplicate Skrin 2")
-                .on_hover_text("Window kiri ikut Skrin 2 sebiji: baris, margin & gerakan sama");
+            ui.toggle_value(&mut self.edit_mode, i18n::t("✏ Edit script", "✏ Edit skrip"));
+            ui.toggle_value(&mut self.s.match_main, i18n::t("⧉ Duplicate Screen 2", "⧉ Duplicate Skrin 2"))
+                .on_hover_text(i18n::t("Left pane follows Screen 2 exactly: same lines, margins and motion", "Window kiri ikut Skrin 2 sebiji: baris, margin & gerakan sama"));
             ui.toggle_value(&mut self.s.show_qr, "📱 Remote")
-                .on_hover_text("Tunjuk QR untuk kawal dari telefon");
-            if ui.button("📂 Buka fail").clicked() {
+                .on_hover_text(i18n::t("Show a QR code to control the prompter from a phone", "Tunjuk QR untuk kawal dari telefon"));
+            if ui.button(i18n::t("📂 Open file", "📂 Buka fail")).clicked() {
                 if let Some(path) = rfd::FileDialog::new()
                     .add_filter("Teks", &["txt", "md"])
                     .pick_file()
@@ -939,15 +963,15 @@ impl App {
                                 .file_name()
                                 .map(|n| n.to_string_lossy().to_string())
                                 .unwrap_or_default();
-                            self.status = format!("Fail dibuka: {name}");
+                            self.status = tr!("Opened file: {name}", "Fail dibuka: {name}");
                             self.loaded_code = None;
                             self.set_script(t, name);
                         }
-                        Err(e) => self.status = format!("Gagal buka fail: {e}"),
+                        Err(e) => self.status = tr!("Could not open the file: {e}", "Gagal buka fail: {e}"),
                     }
                 }
             }
-            if !self.follow && ui.button("🎯 Ikut posisi").clicked() {
+            if !self.follow && ui.button(i18n::t("🎯 Follow position", "🎯 Ikut posisi")).clicked() {
                 self.follow = true;
             }
         });
@@ -955,7 +979,7 @@ impl App {
 
     fn script_view(&mut self, ui: &mut egui::Ui, pmap: &RowMap) {
         if self.edit_mode {
-            ui.label("Edit skrip — **tebal**  ·  [CUE: arahan]   (tekan ✏ Edit skrip sekali lagi untuk selesai)");
+            ui.label(i18n::t("Edit script — **bold**  ·  [CUE: direction]   (press ✏ Edit script again to finish)", "Edit skrip — **tebal**  ·  [CUE: arahan]   (tekan ✏ Edit skrip sekali lagi untuk selesai)"));
             egui::ScrollArea::vertical().show(ui, |ui| {
                 let r = ui.add(
                     egui::TextEdit::multiline(&mut self.script)
@@ -1142,7 +1166,7 @@ impl App {
     }
 
     fn load_code(&mut self, code: String, ctx: &egui::Context) {
-        self.status = format!("Memuat {code}…");
+        self.status = tr!("Loading {code}…", "Memuat {code}…");
         net::fetch_script(
             self.s.server_url.clone(),
             self.s.admin_token.clone(),
@@ -1154,53 +1178,53 @@ impl App {
 
     fn controls(&mut self, ui: &mut egui::Ui) {
         ui.add_space(6.0);
-        egui::CollapsingHeader::new("Susun atur & penjajaran")
+        egui::CollapsingHeader::new(i18n::t("Layout & alignment", "Susun atur & penjajaran"))
             .default_open(true)
             .show(ui, |ui| {
                 ui.horizontal(|ui| {
-                    ui.label("Jajar:");
-                    ui.selectable_value(&mut self.s.align, TextAlign::Left, "Kiri");
-                    ui.selectable_value(&mut self.s.align, TextAlign::Center, "Tengah");
-                    ui.selectable_value(&mut self.s.align, TextAlign::Right, "Kanan");
+                    ui.label(i18n::t("Align:", "Jajar:"));
+                    ui.selectable_value(&mut self.s.align, TextAlign::Left, i18n::t("Left", "Kiri"));
+                    ui.selectable_value(&mut self.s.align, TextAlign::Center, i18n::t("Centre", "Tengah"));
+                    ui.selectable_value(&mut self.s.align, TextAlign::Right, i18n::t("Right", "Kanan"));
                 });
-                ui.add(egui::Slider::new(&mut self.s.font_size, 30.0..=200.0).text("Saiz huruf"));
-                ui.add(egui::Slider::new(&mut self.s.line_spacing, 1.0..=2.2).text("Jarak baris"));
+                ui.add(egui::Slider::new(&mut self.s.font_size, 30.0..=200.0).text(i18n::t("Font size", "Saiz huruf")));
+                ui.add(egui::Slider::new(&mut self.s.line_spacing, 1.0..=2.2).text(i18n::t("Line spacing", "Jarak baris")));
                 ui.add(
                     egui::Slider::new(&mut self.s.margin_left, 0.0..=0.4)
-                        .text("Margin kiri")
+                        .text(i18n::t("Left margin", "Margin kiri"))
                         .custom_formatter(|v, _| format!("{:.0}%", v * 100.0)),
                 );
                 ui.add(
                     egui::Slider::new(&mut self.s.margin_right, 0.0..=0.4)
-                        .text("Margin kanan")
+                        .text(i18n::t("Right margin", "Margin kanan"))
                         .custom_formatter(|v, _| format!("{:.0}%", v * 100.0)),
                 );
                 ui.add(
                     egui::Slider::new(&mut self.s.read_line, 0.1..=0.9)
-                        .text("Garis bacaan")
-                        .custom_formatter(|v, _| format!("{:.0}% dari atas", v * 100.0)),
+                        .text(i18n::t("Reading line", "Garis bacaan"))
+                        .custom_formatter(|v, _| tr!("{:.0}% from top", "{:.0}% dari atas", v * 100.0)),
                 );
                 ui.horizontal(|ui| {
-                    ui.checkbox(&mut self.s.show_arrows, "Kursor kiri/kanan");
-                    ui.add(egui::Slider::new(&mut self.s.arrow_size, 10.0..=120.0).text("saiz"));
+                    ui.checkbox(&mut self.s.show_arrows, i18n::t("Left/right cursors", "Kursor kiri/kanan"));
+                    ui.add(egui::Slider::new(&mut self.s.arrow_size, 10.0..=120.0).text(i18n::t("size", "saiz")));
                 });
-                ui.checkbox(&mut self.s.match_main, "Samakan paparan utama dengan Skrin 2")
-                    .on_hover_text("Skrip di kiri guna baris, margin & jajaran yang sama seperti Skrin 2");
+                ui.checkbox(&mut self.s.match_main, i18n::t("Match main view to Screen 2", "Samakan paparan utama dengan Skrin 2"))
+                    .on_hover_text(i18n::t("The script on the left uses the same lines, margins and alignment as Screen 2", "Skrip di kiri guna baris, margin & jajaran yang sama seperti Skrin 2"));
                 ui.add_enabled_ui(!self.s.match_main, |ui| {
                     ui.horizontal(|ui| {
-                        if ui.button("▼").on_hover_text("Kecilkan teks skrin utama").clicked() {
+                        if ui.button("▼").on_hover_text(i18n::t("Smaller main text", "Kecilkan teks skrin utama")).clicked() {
                             self.s.main_font_size = (self.s.main_font_size - 2.0).max(14.0);
                         }
-                        if ui.button("▲").on_hover_text("Besarkan teks skrin utama").clicked() {
+                        if ui.button("▲").on_hover_text(i18n::t("Larger main text", "Besarkan teks skrin utama")).clicked() {
                             self.s.main_font_size = (self.s.main_font_size + 2.0).min(100.0);
                         }
                         ui.add(
                             egui::Slider::new(&mut self.s.main_font_size, 14.0..=100.0)
-                                .text("Saiz teks skrin utama"),
+                                .text(i18n::t("Main text size", "Saiz teks skrin utama")),
                         );
                     });
                 });
-                if ui.button("Set semula susun atur").clicked() {
+                if ui.button(i18n::t("Reset layout", "Set semula susun atur")).clicked() {
                     let d = Settings::default();
                     self.s.font_size = d.font_size;
                     self.s.line_spacing = d.line_spacing;
@@ -1212,11 +1236,11 @@ impl App {
                 }
             });
 
-        egui::CollapsingHeader::new("Skrip dari tele.johorstudio.com")
+        egui::CollapsingHeader::new(i18n::t("Scripts from tele.johorstudio.com", "Skrip dari tele.johorstudio.com"))
             .default_open(true)
             .show(ui, |ui| {
                 ui.horizontal(|ui| {
-                    ui.label("Kod:");
+                    ui.label(i18n::t("Code:", "Kod:"));
                     let r = ui.add(
                         egui::TextEdit::singleline(&mut self.code_input)
                             .desired_width(90.0)
@@ -1224,17 +1248,17 @@ impl App {
                             .hint_text("123456"),
                     );
                     let enter = r.lost_focus() && ui.input(|i| i.key_pressed(Key::Enter));
-                    if ui.button("Muat").clicked() || enter {
+                    if ui.button(i18n::t("Load", "Muat")).clicked() || enter {
                         let code: String =
                             self.code_input.chars().filter(|c| c.is_ascii_digit()).collect();
                         if code.len() == 6 {
                             self.load_code(code, &ui.ctx().clone());
                         } else {
-                            self.status = "Kod mesti 6 digit".into();
+                            self.status = i18n::t("The code must be 6 digits", "Kod mesti 6 digit").into();
                         }
                     }
-                    if ui.button("⟳ Senarai").clicked() {
-                        self.status = "Memuat senarai…".into();
+                    if ui.button(i18n::t("⟳ List", "⟳ Senarai")).clicked() {
+                        self.status = i18n::t("Loading the list…", "Memuat senarai…").into();
                         net::fetch_list(
                             self.s.server_url.clone(),
                             self.s.admin_token.clone(),
@@ -1249,12 +1273,13 @@ impl App {
                     egui::ScrollArea::vertical().max_height(260.0).show(ui, |ui| {
                         for it in &self.list {
                             let txt = format!(
-                                "{}  {}\n{} · {} · {} aksara · {}",
+                                "{}  {}\n{} · {} · {} {} · {}",
                                 it.code,
                                 it.title,
                                 it.name,
                                 it.email,
                                 it.chars,
+                                i18n::t("chars", "aksara"),
                                 fmt_age(it.updated)
                             );
                             ui.horizontal(|ui| {
@@ -1263,21 +1288,21 @@ impl App {
                                 let b = egui::Button::new(txt)
                                     .wrap()
                                     .min_size(vec2((ui.available_width() - side).max(80.0), 0.0));
-                                if ui.add(b).on_hover_text("Klik untuk muat skrip").clicked() {
+                                if ui.add(b).on_hover_text(i18n::t("Click to load this script", "Klik untuk muat skrip")).clicked() {
                                     load = Some(it.code.clone());
                                 }
                                 if confirming {
                                     let yes = egui::Button::new(
-                                        egui::RichText::new("Padam").color(Color32::WHITE),
+                                        egui::RichText::new(i18n::t("Delete", "Padam")).color(Color32::WHITE),
                                     )
                                     .fill(Color32::from_rgb(190, 40, 40));
                                     if ui.add(yes).clicked() {
                                         delete = Some(it.code.clone());
                                     }
-                                    if ui.button("Batal").clicked() {
+                                    if ui.button(i18n::t("Cancel", "Batal")).clicked() {
                                         self.confirm_delete = None;
                                     }
-                                } else if ui.button("🗑").on_hover_text("Padam skrip ini").clicked() {
+                                } else if ui.button("🗑").on_hover_text(i18n::t("Delete this script", "Padam skrip ini")).clicked() {
                                     self.confirm_delete = Some(it.code.clone());
                                 }
                             });
@@ -1285,7 +1310,7 @@ impl App {
                     });
                     if let Some(code) = delete {
                         self.confirm_delete = None;
-                        self.status = format!("Memadam {code}…");
+                        self.status = tr!("Deleting {code}…", "Memadam {code}…");
                         net::delete_script(
                             self.s.server_url.clone(),
                             self.s.admin_token.clone(),
@@ -1301,20 +1326,20 @@ impl App {
                 }
             });
 
-        egui::CollapsingHeader::new("Tetapan server").show(ui, |ui| {
+        egui::CollapsingHeader::new(i18n::t("Server settings", "Tetapan server")).show(ui, |ui| {
             ui.horizontal(|ui| {
                 ui.label("Server:");
                 ui.text_edit_singleline(&mut self.s.server_url);
             });
             ui.horizontal(|ui| {
-                ui.label("Token admin:");
+                ui.label(i18n::t("Admin token:", "Token admin:"));
                 ui.add(egui::TextEdit::singleline(&mut self.s.admin_token).password(true));
             });
         });
 
         ui.add_space(6.0);
-        ui.small("← perlahan/undur · → laju · Space henti · ↑↓ baris · Home atas · Esc diam");
-        ui.small("Klik teks di kiri atau dalam pratonton untuk letak baris itu pada garis bacaan. Dwi-klik Skrin 2 = togol skrin penuh.");
+        ui.small(i18n::t("← slower/reverse · → faster · Space play/pause · ↑↓ line · Home top · Esc stop", "← perlahan/undur · → laju · Space main/henti · ↑↓ baris · Home atas · Esc diam"));
+        ui.small(i18n::t("Click text on the left or in the preview to bring that line to the reading line. Double-click Screen 2 = toggle fullscreen.", "Klik teks di kiri atau dalam pratonton untuk letak baris itu pada garis bacaan. Dwi-klik Skrin 2 = togol skrin penuh."));
     }
 }
 
@@ -1325,11 +1350,11 @@ fn fmt_age(ts: i64) -> String {
         .unwrap_or(ts);
     let d = (now - ts).max(0);
     if d < 3600 {
-        format!("{} min lalu", d / 60)
+        tr!("{} min ago", "{} min lalu", d / 60)
     } else if d < 86400 {
-        format!("{} jam lalu", d / 3600)
+        tr!("{} h ago", "{} jam lalu", d / 3600)
     } else {
-        format!("{} hari lalu", d / 86400)
+        tr!("{} days ago", "{} hari lalu", d / 86400)
     }
 }
 
@@ -1375,7 +1400,16 @@ impl eframe::App for App {
 
         egui::Panel::top("top").show(ui, |ui| {
             ui.add_space(4.0);
-            self.top_bar(ui);
+            ui.horizontal(|ui| {
+                ui.with_layout(egui::Layout::right_to_left(Align::Center), |ui| {
+                    self.lang_switch(ui);
+                    ui.separator();
+                    ui.with_layout(
+                        egui::Layout::left_to_right(Align::Center).with_main_wrap(true),
+                        |ui| self.top_bar(ui),
+                    );
+                });
+            });
             ui.horizontal(|ui| {
                 if !self.loaded_title.is_empty() {
                     ui.label(
@@ -1395,7 +1429,7 @@ impl eframe::App for App {
             .resizable(false)
             .show(ui, |ui| {
                 ui.add_space(6.0);
-                ui.label(egui::RichText::new("Pratonton Skrin 2").strong());
+                ui.label(egui::RichText::new(i18n::t("Screen 2 preview", "Pratonton Skrin 2")).strong());
                 self.preview(ui, &pmap);
                 egui::ScrollArea::vertical().show(ui, |ui| self.controls(ui));
             });

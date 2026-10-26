@@ -1,10 +1,10 @@
 <!doctype html>
-<html lang="ms">
+<html lang="en">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Teleprompter — JohorStudio</title>
-<meta name="description" content="Hantar skrip teleprompter untuk acara anda bersama JohorStudio.">
+<meta name="description" content="Send the teleprompter script for your event with JohorStudio.">
 <style>
 :root{--bg:#0d0d0f;--card:#17171b;--line:#2a2a31;--text:#f2f2f4;--mute:#9a9aa6;--acc:#f5c542;--cue:#4fc3f7;--err:#ff6b6b;--ok:#5ad08a}
 *{box-sizing:border-box}
@@ -39,6 +39,9 @@ button:disabled{opacity:.5;cursor:wait}
 .hidden{display:none}
 a{color:var(--acc)}
 .meta{color:var(--mute);font-size:13px}
+.langsw{margin-left:auto;display:flex;gap:4px;align-self:flex-start}
+.langsw button{padding:6px 10px;border:1px solid var(--line);background:var(--card);color:var(--mute);border-radius:8px;font:600 13px/1 inherit;cursor:pointer}
+.langsw button.on{background:var(--acc);border-color:var(--acc);color:#111}
 footer{margin-top:30px;text-align:center;color:var(--mute);font-size:13px}
 </style>
 </head>
@@ -46,52 +49,56 @@ footer{margin-top:30px;text-align:center;color:var(--mute);font-size:13px}
 <div class="wrap">
   <header>
     <div class="logo">JS</div>
-    <div><h1>Skrip Teleprompter</h1><p>JohorStudio — hantar skrip untuk dibaca di teleprompter pada hari acara</p></div>
+    <div><h1 data-i="h1">Teleprompter Script</h1><p data-i="sub">JohorStudio — send the script to be read on the teleprompter on the day of your event</p></div>
+    <div class="langsw" role="group" aria-label="Language">
+      <button type="button" data-lang="en">EN</button>
+      <button type="button" data-lang="ms">BM</button>
+    </div>
   </header>
 
   <div class="tabs">
-    <button class="tab on" data-tab="new">Hantar skrip baru</button>
-    <button class="tab" data-tab="open">Buka skrip (kod 6 digit)</button>
+    <button class="tab on" data-tab="new" data-i="tabNew">Send a new script</button>
+    <button class="tab" data-tab="open" data-i="tabOpen">Open a script (6-digit code)</button>
   </div>
 
   <!-- NEW -->
   <section id="tab-new" class="card">
     <form id="fNew">
-      <label>Tajuk / Nama acara</label>
-      <input name="title" maxlength="200" required placeholder="cth: Majlis Konvokesyen Tadika ABC 2026">
+      <label for="nTitle" data-i="lTitle">Title / event name</label>
+      <input id="nTitle" name="title" maxlength="200" required data-ip="pTitle" placeholder="e.g. ABC Kindergarten Graduation 2026">
       <div class="row">
-        <div><label>Nama anda</label><input name="name" maxlength="120" required></div>
-        <div><label>Email (kod akan dihantar ke sini)</label><input name="email" type="email" maxlength="200" required></div>
+        <div><label for="nName" data-i="lName">Your name</label><input id="nName" name="name" maxlength="120" required></div>
+        <div><label for="nEmail" data-i="lEmail">Email (we send the code here)</label><input id="nEmail" name="email" type="email" maxlength="200" required></div>
       </div>
-      <label>Skrip</label>
-      <textarea name="content" required placeholder="Tampal skrip di sini..."></textarea>
-      <div class="hint">Format ringkas: <code>**teks tebal**</code> untuk penekanan, <code>[CUE: tepuk tangan]</code> untuk arahan (berwarna biru, bukan untuk dibaca). Baris kosong = perenggan baru.</div>
-      <button class="btn" type="submit">Hantar skrip</button>
+      <label for="nContent" data-i="lScript">Script</label>
+      <textarea id="nContent" name="content" required data-ip="pScript" placeholder="Paste your script here..."></textarea>
+      <div class="hint" data-ih="hFormat">Simple format: <code>**bold text**</code> for emphasis, <code>[CUE: applause]</code> for directions (shown in blue, not read out). Empty line = new paragraph.</div>
+      <button class="btn" type="submit" data-i="bSend">Send script</button>
       <div class="msg" id="mNew"></div>
     </form>
     <div id="done" class="hidden" style="text-align:center">
-      <p>Skrip diterima. Kod anda:</p>
+      <p data-i="dGot">Script received. Your code:</p>
       <div class="code" id="doneCode"></div>
-      <p class="meta">Kod ini juga telah dihantar ke email anda. Simpan kod ini — guna untuk buka &amp; edit skrip, dan berikan kepada krew kami pada hari acara.</p>
-      <button class="btn" id="doneOpen">Buka &amp; edit skrip</button>
-      <button class="btn ghost" id="doneAgain">Hantar skrip lain</button>
+      <p class="meta" data-i="dKeep">We have also emailed this code to you. Keep it — use it to open &amp; edit the script, and give it to our crew on the day of the event.</p>
+      <button class="btn" id="doneOpen" data-i="dOpen">Open &amp; edit script</button>
+      <button class="btn ghost" id="doneAgain" data-i="dAgain">Send another script</button>
     </div>
   </section>
 
   <!-- OPEN -->
   <section id="tab-open" class="card hidden">
     <form id="fOpen">
-      <label>Masukkan kod 6 digit</label>
-      <input class="codein" name="code" inputmode="numeric" pattern="\d{6}" maxlength="6" required autocomplete="off">
-      <button class="btn" type="submit">Buka</button>
+      <label for="oCode" data-i="lCode">Enter the 6-digit code</label>
+      <input id="oCode" class="codein" name="code" inputmode="numeric" pattern="\d{6}" maxlength="6" required autocomplete="off">
+      <button class="btn" type="submit" data-i="bOpen">Open</button>
       <div class="msg" id="mOpen"></div>
     </form>
     <details style="margin-top:18px">
-      <summary class="meta" style="cursor:pointer">Lupa kod?</summary>
+      <summary class="meta" style="cursor:pointer" data-i="forgot">Forgot the code?</summary>
       <form id="fForgot">
-        <label>Email yang digunakan semasa hantar skrip</label>
-        <input name="email" type="email" required>
-        <button class="btn ghost" type="submit">Hantar semula kod ke email</button>
+        <label for="fEmail" data-i="lFEmail">The email you used when sending the script</label>
+        <input id="fEmail" name="email" type="email" required>
+        <button class="btn ghost" type="submit" data-i="bResend">Email me my codes</button>
         <div class="msg" id="mForgot"></div>
       </form>
     </details>
@@ -99,15 +106,15 @@ footer{margin-top:30px;text-align:center;color:var(--mute);font-size:13px}
 
   <!-- EDIT -->
   <section id="tab-edit" class="card hidden">
-    <div class="meta">Kod <b id="eCode" style="color:var(--acc)"></b> · <span id="eMeta"></span></div>
+    <div class="meta"><span data-i="code">Code</span> <b id="eCode" style="color:var(--acc)"></b> · <span id="eMeta"></span></div>
     <form id="fEdit">
-      <label>Tajuk</label>
-      <input name="title" maxlength="200">
-      <label>Skrip</label>
-      <textarea name="content" required></textarea>
-      <div class="hint">Format: <code>**tebal**</code> · <code>[CUE: arahan]</code></div>
-      <button class="btn" type="submit">Simpan perubahan</button>
-      <button class="btn ghost" type="button" id="btnPrev">Pratonton teleprompter</button>
+      <label for="eTitle" data-i="lTitle2">Title</label>
+      <input id="eTitle" name="title" maxlength="200">
+      <label for="eContent" data-i="lScript">Script</label>
+      <textarea id="eContent" name="content" required></textarea>
+      <div class="hint" data-ih="hFormat2">Format: <code>**bold**</code> · <code>[CUE: direction]</code></div>
+      <button class="btn" type="submit" data-i="bSave">Save changes</button>
+      <button class="btn ghost" type="button" id="btnPrev" data-i="bPrev">Teleprompter preview</button>
       <div class="msg" id="mEdit"></div>
       <div class="preview hidden" id="prev"></div>
     </form>
@@ -117,6 +124,38 @@ footer{margin-top:30px;text-align:center;color:var(--mute);font-size:13px}
 </div>
 <script>
 const $=s=>document.querySelector(s);
+const I18N={
+  en:{h1:"Teleprompter Script",sub:"JohorStudio — send the script to be read on the teleprompter on the day of your event",
+    tabNew:"Send a new script",tabOpen:"Open a script (6-digit code)",lTitle:"Title / event name",pTitle:"e.g. ABC Kindergarten Graduation 2026",
+    lName:"Your name",lEmail:"Email (we send the code here)",lScript:"Script",pScript:"Paste your script here...",
+    hFormat:'Simple format: <code>**bold text**</code> for emphasis, <code>[CUE: applause]</code> for directions (shown in blue, not read out). Empty line = new paragraph.',
+    bSend:"Send script",dGot:"Script received. Your code:",dKeep:"We have also emailed this code to you. Keep it — use it to open & edit the script, and give it to our crew on the day of the event.",
+    dOpen:"Open & edit script",dAgain:"Send another script",lCode:"Enter the 6-digit code",bOpen:"Open",forgot:"Forgot the code?",
+    lFEmail:"The email you used when sending the script",bResend:"Email me my codes",code:"Code",lTitle2:"Title",
+    hFormat2:'Format: <code>**bold**</code> · <code>[CUE: direction]</code>',bSave:"Save changes",bPrev:"Teleprompter preview",
+    sent:"If this email is registered, the codes have been sent. Check your inbox/spam.",saved:"Saved.",updated:"updated",err:"Error"},
+  ms:{h1:"Skrip Teleprompter",sub:"JohorStudio — hantar skrip untuk dibaca di teleprompter pada hari acara",
+    tabNew:"Hantar skrip baru",tabOpen:"Buka skrip (kod 6 digit)",lTitle:"Tajuk / Nama acara",pTitle:"cth: Majlis Konvokesyen Tadika ABC 2026",
+    lName:"Nama anda",lEmail:"Email (kod akan dihantar ke sini)",lScript:"Skrip",pScript:"Tampal skrip di sini...",
+    hFormat:'Format ringkas: <code>**teks tebal**</code> untuk penekanan, <code>[CUE: tepuk tangan]</code> untuk arahan (berwarna biru, bukan untuk dibaca). Baris kosong = perenggan baru.',
+    bSend:"Hantar skrip",dGot:"Skrip diterima. Kod anda:",dKeep:"Kod ini juga telah dihantar ke email anda. Simpan kod ini — guna untuk buka & edit skrip, dan berikan kepada krew kami pada hari acara.",
+    dOpen:"Buka & edit skrip",dAgain:"Hantar skrip lain",lCode:"Masukkan kod 6 digit",bOpen:"Buka",forgot:"Lupa kod?",
+    lFEmail:"Email yang digunakan semasa hantar skrip",bResend:"Hantar semula kod ke email",code:"Kod",lTitle2:"Tajuk",
+    hFormat2:'Format: <code>**tebal**</code> · <code>[CUE: arahan]</code>',bSave:"Simpan perubahan",bPrev:"Pratonton teleprompter",
+    sent:"Jika email ini berdaftar, kod telah dihantar. Semak inbox/spam.",saved:"Disimpan.",updated:"dikemaskini",err:"Ralat"}
+};
+let lang="en";try{lang=localStorage.getItem("tele-lang")||"en"}catch(e){}
+if(!I18N[lang])lang="en";
+const L=k=>I18N[lang][k]??I18N.en[k];
+function applyLang(){
+  document.documentElement.lang=lang;
+  document.querySelectorAll("[data-i]").forEach(e=>e.textContent=L(e.dataset.i));
+  document.querySelectorAll("[data-ih]").forEach(e=>e.innerHTML=L(e.dataset.ih));
+  document.querySelectorAll("[data-ip]").forEach(e=>e.placeholder=L(e.dataset.ip));
+  document.querySelectorAll("[data-lang]").forEach(b=>{b.classList.toggle("on",b.dataset.lang===lang);b.setAttribute("aria-pressed",b.dataset.lang===lang)});
+  if(meta)showMeta(meta);
+}
+document.querySelectorAll("[data-lang]").forEach(b=>b.onclick=()=>{lang=b.dataset.lang;try{localStorage.setItem("tele-lang",lang)}catch(e){}applyLang()});
 function tab(t){
   document.querySelectorAll('.tab').forEach(b=>b.classList.toggle('on',b.dataset.tab===t));
   ['new','open','edit'].forEach(x=>$('#tab-'+x).classList.toggle('hidden',x!==t));
@@ -124,13 +163,15 @@ function tab(t){
 document.querySelectorAll('.tab').forEach(b=>b.onclick=()=>{tab(b.dataset.tab);history.replaceState(null,'','/')});
 function msg(el,text,ok){el.className='msg '+(ok?'ok':'err');el.textContent=text}
 async function api(method,url,body){
-  const r=await fetch(url,{method,headers:{'Content-Type':'application/json'},body:body?JSON.stringify(body):undefined});
+  const r=await fetch(url,{method,headers:{'Content-Type':'application/json','X-Lang':lang},body:body?JSON.stringify(body):undefined});
   const j=await r.json().catch(()=>({}));
-  if(!r.ok) throw new Error(j.error||('Ralat '+r.status));
+  if(!r.ok) throw new Error(j.error||(L('err')+' '+r.status));
   return j;
 }
 function esc(s){return s.replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]))}
 function render(s){return esc(s).replace(/\*\*(.+?)\*\*/g,'<b>$1</b>').replace(/\[(?:CUE:?\s*)?([^\]]+)\]/gi,'<span class="cue">[$1]</span>')}
+let meta=null;
+function showMeta(j){meta=j;$('#eMeta').textContent=j.title+' · '+j.name+' · '+L('updated')+' '+new Date(j.updated*1000).toLocaleString(lang==='ms'?'ms-MY':'en-GB')}
 
 $('#fNew').onsubmit=async e=>{
   e.preventDefault();const f=e.target,b=f.querySelector('button');b.disabled=true;
@@ -146,7 +187,7 @@ $('#doneAgain').onclick=()=>{$('#done').classList.add('hidden');$('#fNew').class
 $('#fOpen').onsubmit=e=>{e.preventDefault();load(e.target.code.value.trim())};
 $('#fForgot').onsubmit=async e=>{
   e.preventDefault();
-  try{await api('POST','/api/forgot',{email:e.target.email.value});msg($('#mForgot'),'Jika email ini berdaftar, kod telah dihantar. Semak inbox/spam.',true)}
+  try{await api('POST','/api/forgot',{email:e.target.email.value});msg($('#mForgot'),L('sent'),true)}
   catch(err){msg($('#mForgot'),err.message)}
 };
 let cur=null;
@@ -154,19 +195,18 @@ async function load(code){
   try{
     const j=await api('GET','/api/scripts/'+encodeURIComponent(code));
     cur=j.code;tab('edit');history.replaceState(null,'','/s/'+j.code);
-    $('#eCode').textContent=j.code;
-    $('#eMeta').textContent=j.title+' · '+j.name+' · dikemaskini '+new Date(j.updated*1000).toLocaleString('ms-MY');
+    $('#eCode').textContent=j.code;showMeta(j);
     $('#fEdit').title.value=j.title;$('#fEdit').content.value=j.content;$('#mEdit').className='msg';
   }catch(err){tab('open');msg($('#mOpen'),err.message)}
 }
 $('#fEdit').onsubmit=async e=>{
   e.preventDefault();const f=e.target,b=f.querySelector('button');b.disabled=true;
   try{const j=await api('PUT','/api/scripts/'+cur,{title:f.title.value,content:f.content.value});
-    $('#eMeta').textContent=j.title+' · '+j.name+' · dikemaskini '+new Date(j.updated*1000).toLocaleString('ms-MY');
-    msg($('#mEdit'),'Disimpan.',true)}
+    showMeta(j);msg($('#mEdit'),L('saved'),true)}
   catch(err){msg($('#mEdit'),err.message)}finally{b.disabled=false}
 };
 $('#btnPrev').onclick=()=>{const p=$('#prev');p.classList.toggle('hidden');p.innerHTML=render($('#fEdit').content.value)};
+applyLang();
 const m=location.pathname.match(/^\/s\/(\d{6})/);if(m)load(m[1]);
 </script>
 </body>

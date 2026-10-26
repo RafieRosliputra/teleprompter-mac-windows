@@ -45,12 +45,12 @@ fn get_json<T: for<'de> Deserialize<'de>>(url: &str, token: &str) -> Result<T, S
     if !token.is_empty() {
         req = req.header("Authorization", &format!("Bearer {token}"));
     }
-    let mut resp = req.call().map_err(|e| format!("Rangkaian: {e}"))?;
+    let mut resp = req.call().map_err(|e| crate::tr!("Network: {e}", "Rangkaian: {e}"))?;
     let status = resp.status().as_u16();
     let body = resp
         .body_mut()
         .read_to_string()
-        .map_err(|e| format!("Baca: {e}"))?;
+        .map_err(|e| crate::tr!("Read: {e}", "Baca: {e}"))?;
     if status >= 400 {
         let msg = serde_json::from_str::<serde_json::Value>(&body)
             .ok()
@@ -79,7 +79,7 @@ pub fn fetch_list(base: String, token: String, tx: Sender<NetMsg>, ctx: eframe::
     thread::spawn(move || {
         let url = format!("{}/api/admin/scripts", base.trim_end_matches('/'));
         let r = if token.is_empty() {
-            Err("Token admin belum diisi (Tetapan)".to_string())
+            Err(crate::i18n::t("Admin token not set (Server settings)", "Token admin belum diisi (Tetapan)").to_string())
         } else {
             get_json(&url, &token)
         };
@@ -99,13 +99,13 @@ pub fn delete_script(
         let url = format!("{}/api/admin/scripts/{}", base.trim_end_matches('/'), code);
         let r = (|| {
             if token.is_empty() {
-                return Err("Token admin belum diisi (Tetapan)".to_string());
+                return Err(crate::i18n::t("Admin token not set (Server settings)", "Token admin belum diisi (Tetapan)").to_string());
             }
             let resp = agent()
                 .delete(&url)
                 .header("Authorization", &format!("Bearer {token}"))
                 .call()
-                .map_err(|e| format!("Rangkaian: {e}"))?;
+                .map_err(|e| crate::tr!("Network: {e}", "Rangkaian: {e}"))?;
             let status = resp.status().as_u16();
             if status >= 400 {
                 return Err(format!("HTTP {status}"));

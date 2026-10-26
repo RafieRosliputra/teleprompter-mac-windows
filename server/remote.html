@@ -1,5 +1,5 @@
 <!doctype html>
-<html lang="ms">
+<html lang="en">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
@@ -23,6 +23,7 @@ button:active{transform:scale(.96);filter:brightness(1.25)}
 .dot.on{background:var(--ok)}
 .icons{display:flex;gap:8px}
 .ib{width:44px;height:44px;border-radius:12px;display:grid;place-items:center}
+.ib.lang{font-size:14px;font-weight:800;color:var(--text)}
 .ib.on{border-color:var(--acc);background:#2a2412;color:var(--acc)}
 .title{display:flex;align-items:baseline;justify-content:space-between;gap:10px}
 .title b{font-size:17px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
@@ -71,12 +72,13 @@ video{position:fixed;width:1px;height:1px;opacity:0;pointer-events:none}
 <body>
 <div class="app">
   <div class="top">
-    <div class="conn"><span class="dot" id="dot"></span><span id="conn">Menyambung…</span></div>
+    <div class="conn"><span class="dot" id="dot"></span><span id="conn">Connecting…</span></div>
     <div class="icons">
-      <button class="ib" id="wake" aria-label="Skrin telefon sentiasa hidup">
+      <button class="ib lang" id="lang" data-ia="aLang" aria-label="Language">EN</button>
+      <button class="ib" id="wake" data-ia="aWake" aria-label="Keep the phone screen on">
         <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/></svg>
       </button>
-      <button class="ib" id="fs" aria-label="Skrin penuh">
+      <button class="ib" id="fs" data-ia="aFs" aria-label="Fullscreen">
         <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5"/></svg>
       </button>
     </div>
@@ -86,55 +88,55 @@ video{position:fixed;width:1px;height:1px;opacity:0;pointer-events:none}
 
   <div class="pv" id="pv">
     <canvas id="cv"></canvas>
-    <div class="tag l">Skrin 2</div>
-    <div class="tag r"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3v18M7 8l5-5 5 5M7 16l5 5 5-5"/></svg>Leret atas/bawah · ketik baris</div>
+    <div class="tag l" data-i="screen2">Screen 2</div>
+    <div class="tag r"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3v18M7 8l5-5 5 5M7 16l5 5 5-5"/></svg><span data-i="hint">Drag up/down · tap a line</span></div>
   </div>
 
-  <div class="stat"><b id="state">⏹ Diam</b><span id="line">Baris – / –</span></div>
+  <div class="stat"><b id="state">⏹ Stopped</b><span id="line">Line – / –</span></div>
 
   <div class="pad">
-    <button class="side" data-cmd="slower" aria-label="Perlahan atau undur">
+    <button class="side" data-cmd="slower" data-ia="aSlower" aria-label="Slower or reverse">
       <svg width="30" height="30" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M11 17l-5-5 5-5M18 17l-5-5 5-5"/></svg>
     </button>
-    <button class="play" data-cmd="toggle" id="play" aria-label="Main atau henti">
+    <button class="play" data-cmd="toggle" id="play" data-ia="aPlay" aria-label="Play or pause">
       <svg id="icoPlay" width="46" height="46" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M8 5.5v13a1 1 0 0 0 1.5.86l10.5-6.5a1 1 0 0 0 0-1.72L9.5 4.64A1 1 0 0 0 8 5.5z"/></svg>
       <svg id="icoPause" width="46" height="46" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true" style="display:none"><rect x="6" y="5" width="4" height="14" rx="1"/><rect x="14" y="5" width="4" height="14" rx="1"/></svg>
     </button>
-    <button class="side" data-cmd="faster" aria-label="Laju">
+    <button class="side" data-cmd="faster" data-ia="aFaster" aria-label="Faster">
       <svg width="30" height="30" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M13 17l5-5-5-5M6 17l5-5-5-5"/></svg>
     </button>
   </div>
 
   <div>
-    <div class="lbl">Laju bila tekan Main</div>
+    <div class="lbl" data-i="defSpeed">Speed when you press Play</div>
     <div class="chips" id="chips"></div>
   </div>
 
   <div class="grid4">
-    <button data-cmd="line_up"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 19V5M6 11l6-6 6 6"/></svg>Baris</button>
-    <button data-cmd="line_down"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 5v14M6 13l6 6 6-6"/></svg>Baris</button>
-    <button data-cmd="top"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 4h14M12 20V9M7 14l5-5 5 5"/></svg>Atas</button>
-    <button data-cmd="stop"><svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><rect x="6" y="6" width="12" height="12" rx="2"/></svg>Stop</button>
+    <button data-cmd="line_up"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 19V5M6 11l6-6 6 6"/></svg><span data-i="line1">Line</span></button>
+    <button data-cmd="line_down"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 5v14M6 13l6 6 6-6"/></svg><span data-i="line1">Line</span></button>
+    <button data-cmd="top"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 4h14M12 20V9M7 14l5-5 5 5"/></svg><span data-i="top">Top</span></button>
+    <button data-cmd="stop"><svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><rect x="6" y="6" width="12" height="12" rx="2"/></svg><span data-i="stop">Stop</span></button>
   </div>
 
   <div class="font">
-    <span>Saiz huruf Skrin 2</span>
+    <span data-i="font">Screen 2 font size</span>
     <div>
-      <button id="fminus" aria-label="Kecilkan huruf Skrin 2">−</button>
+      <button id="fminus" data-ia="aFminus" aria-label="Smaller Screen 2 text">−</button>
       <b id="fsz">–</b>
-      <button id="fplus" aria-label="Besarkan huruf Skrin 2">+</button>
+      <button id="fplus" data-ia="aFplus" aria-label="Larger Screen 2 text">+</button>
     </div>
   </div>
 
   <div class="scripts">
     <div class="shead">
-      <b>Skrip</b>
+      <b data-i="scripts">Scripts</b>
       <div>
-        <button id="sreload" aria-label="Muat semula skrip semasa dari server">⟳ Muat semula skrip</button>
-        <button id="slistbtn" aria-label="Muat semula senarai skrip">⟳ Senarai</button>
+        <button id="sreload" data-i="reloadBtn" data-ia="aReload" aria-label="Reload the current script from the server">⟳ Reload script</button>
+        <button id="slistbtn" data-i="listBtn" data-ia="aList" aria-label="Refresh the script list">⟳ List</button>
       </div>
     </div>
-    <div class="slist" id="slist"><div class="sempty">Memuat senarai skrip…</div></div>
+    <div class="slist" id="slist"><div class="sempty" data-i="loadingList">Loading the script list…</div></div>
   </div>
 </div>
 <div class="toast" id="toast"></div>
@@ -150,6 +152,63 @@ function toast(t) { const e = $("toast"); e.textContent = t; e.classList.add("sh
 function send(o) { if (ws && ws.readyState === 1) ws.send(JSON.stringify(o)); }
 function buzz() { if (navigator.vibrate) navigator.vibrate(8); }
 
+// ---------- language (EN default, BM optional; saved on this phone)
+const I18N = {
+  en: {
+    connecting: "Connecting…", waiting: "Waiting for the Mac · {0}", reconnect: "Disconnected — reconnecting…",
+    connected: "Connected · Mac · {0}", macOff: "The Mac is offline", internet: "Internet", local: "Local",
+    screen2: "Screen 2", hint: "Drag up/down · tap a line", paused: "⏸ Paused", stopped: "⏹ Stopped",
+    speed: "▶ Speed {0}x", reverse: "◀ Reverse {0}x", line: "Line {0} / {1}", defSpeed: "Speed when you press Play",
+    line1: "Line", top: "Top", stop: "Stop", font: "Screen 2 font size", scripts: "Scripts",
+    reloadBtn: "⟳ Reload script", listBtn: "⟳ List", loadingList: "Loading the script list…",
+    noScripts: "No scripts on the server.", showing: "Showing", chars: "chars",
+    minAgo: "{0} min ago", hAgo: "{0} h ago", dAgo: "{0} days ago",
+    isShowing: "This script is already on screen", confirmLoad: "Load script {0} — {1}?\nThe script on screen now will be replaced.",
+    loading: "Loading the script…", listLoading: "Loading the list…", notServer: "The current script isn't from the server",
+    reloading: "Reloading the script (position kept)…", wakeFail: "Couldn't keep the screen on. Tap again.",
+    wakeOn: "The screen will stay on", wakeOff: "The screen can sleep as usual", fsFail: "The browser blocked fullscreen",
+    iosFs: "iPhone: Share › Add to Home Screen for fullscreen",
+    aLang: "Language: English (tap for Bahasa Melayu)", aWake: "Keep the phone screen on", aFs: "Fullscreen",
+    aSlower: "Slower or reverse", aPlay: "Play or pause", aFaster: "Faster", aFminus: "Smaller Screen 2 text",
+    aFplus: "Larger Screen 2 text", aReload: "Reload the current script from the server", aList: "Refresh the script list",
+  },
+  ms: {
+    connecting: "Menyambung…", waiting: "Menunggu Mac · {0}", reconnect: "Terputus — menyambung semula…",
+    connected: "Bersambung · Mac · {0}", macOff: "Mac tidak dalam talian", internet: "Internet", local: "Tempatan",
+    screen2: "Skrin 2", hint: "Leret atas/bawah · ketik baris", paused: "⏸ Berhenti", stopped: "⏹ Diam",
+    speed: "▶ Laju {0}x", reverse: "◀ Undur {0}x", line: "Baris {0} / {1}", defSpeed: "Laju bila tekan Main",
+    line1: "Baris", top: "Atas", stop: "Stop", font: "Saiz huruf Skrin 2", scripts: "Skrip",
+    reloadBtn: "⟳ Muat semula skrip", listBtn: "⟳ Senarai", loadingList: "Memuat senarai skrip…",
+    noScripts: "Tiada skrip di server.", showing: "Dipapar", chars: "aksara",
+    minAgo: "{0} min lalu", hAgo: "{0} jam lalu", dAgo: "{0} hari lalu",
+    isShowing: "Skrip ini sedang dipapar", confirmLoad: "Muat skrip {0} — {1}?\nSkrip di skrin sekarang akan diganti.",
+    loading: "Memuat skrip…", listLoading: "Memuat senarai…", notServer: "Skrip semasa bukan dari server",
+    reloading: "Memuat semula skrip (posisi kekal)…", wakeFail: "Tak dapat kunci skrin. Ketik sekali lagi.",
+    wakeOn: "Skrin akan kekal hidup", wakeOff: "Skrin boleh tidur seperti biasa", fsFail: "Skrin penuh tak dibenarkan oleh browser",
+    iosFs: "iPhone: Share › Add to Home Screen untuk skrin penuh",
+    aLang: "Bahasa: Bahasa Melayu (ketik untuk English)", aWake: "Skrin telefon sentiasa hidup", aFs: "Skrin penuh",
+    aSlower: "Perlahan atau undur", aPlay: "Main atau henti", aFaster: "Laju", aFminus: "Kecilkan huruf Skrin 2",
+    aFplus: "Besarkan huruf Skrin 2", aReload: "Muat semula skrip semasa dari server", aList: "Muat semula senarai skrip",
+  },
+};
+let lang = "en";
+try { lang = localStorage.getItem("tele-lang") || "en"; } catch (e) {}
+if (!I18N[lang]) lang = "en";
+function L(k, ...a) { return (I18N[lang][k] ?? I18N.en[k] ?? k).replace(/\{(\d)\}/g, (_, i) => a[i]); }
+function applyLang() {
+  document.documentElement.lang = lang;
+  document.querySelectorAll("[data-i]").forEach(e => { e.textContent = L(e.dataset.i); });
+  document.querySelectorAll("[data-ia]").forEach(e => e.setAttribute("aria-label", L(e.dataset.ia)));
+  $("lang").textContent = lang === "ms" ? "BM" : "EN";
+  updConn(); render();
+  if (scripts) renderScripts();
+}
+$("lang").onclick = () => {
+  lang = lang === "en" ? "ms" : "en";
+  try { localStorage.setItem("tele-lang", lang); } catch (e) {}
+  buzz(); applyLang();
+};
+
 // ---------- connection
 // Internet (relay): page at https://tele.johorstudio.com/r/<session>
 // Local: page at http://<mac-ip>:8140/ (Tailscale / same Wi-Fi)
@@ -157,23 +216,27 @@ const relayId = (location.pathname.match(/^\/r\/([a-z0-9]{16,64})$/) || [])[1];
 const wsUrl = relayId
   ? `${location.protocol === "https:" ? "wss" : "ws"}://${location.host}/relay/phone/${relayId}`
   : `ws://${location.hostname}:8141/`;
-const via = relayId ? "Internet" : "Tempatan";
-let lastMsg = 0, scripts = null, askedList = false;
+let lastMsg = 0, scripts = null, askedList = false, conn = "connecting";
+function updConn() {
+  const via = L(relayId ? "internet" : "local");
+  $("dot").classList.toggle("on", conn === "connected");
+  $("conn").textContent = L(conn, via);
+}
 function connect() {
   ws = new WebSocket(wsUrl);
-  ws.onopen = () => { $("conn").textContent = `Menunggu Mac · ${via}`; };
-  ws.onclose = () => { $("dot").classList.remove("on"); $("conn").textContent = "Terputus — menyambung semula…"; setTimeout(connect, 1500); };
+  ws.onopen = () => { conn = "waiting"; updConn(); };
+  ws.onclose = () => { conn = "reconnect"; updConn(); setTimeout(connect, 1500); };
   ws.onerror = () => ws.close();
   ws.onmessage = e => {
     const m = JSON.parse(e.data);
     lastMsg = performance.now();
     if (m.t === "layout") { layout = m; layoutVer = m.ver; return; }
-    if (m.t === "mac") { $("dot").classList.toggle("on", !!m.on); $("conn").textContent = m.on ? `Bersambung · Mac · ${via}` : "Mac tidak dalam talian"; return; }
+    if (m.t === "mac") { conn = m.on ? "connected" : "macOff"; updConn(); return; }
     if (m.t === "scripts") { scripts = m; renderScripts(); return; }
     if (m.t === "state") {
       if (!askedList) { askedList = true; send({cmd: "list_scripts"}); }
       st = m;
-      $("dot").classList.add("on"); $("conn").textContent = `Bersambung · Mac · ${via}`;
+      if (conn !== "connected") { conn = "connected"; updConn(); }
       render();
     }
   };
@@ -183,9 +246,9 @@ setInterval(() => send({t: "ping"}), 20000);
 // ---------- UI state
 function render() {
   if (!st) return;
-  const s = st.paused ? "⏸ Berhenti" : st.spd === 0 ? "⏹ Diam" : st.spd > 0 ? `▶ Laju ${st.spd}x` : `◀ Undur ${-st.spd}x`;
+  const s = st.paused ? L("paused") : st.spd === 0 ? L("stopped") : st.spd > 0 ? L("speed", st.spd) : L("reverse", -st.spd);
   $("state").textContent = s;
-  $("line").textContent = `Baris ${st.row} / ${st.rows}`;
+  $("line").textContent = L("line", st.row, st.rows);
   $("fsz").textContent = Math.round(st.fs);
   const t = st.title || "Teleprompter", m = t.match(/^(\d{6}) — (.*)$/);
   $("title").textContent = m ? m[2] : t;
@@ -200,7 +263,7 @@ function render() {
 // ---------- script list (fetched by the Mac from tele.johorstudio.com)
 function ago(t) {
   const d = Math.max(0, Date.now() / 1000 - t);
-  return d < 3600 ? `${Math.floor(d / 60)} min lalu` : d < 86400 ? `${Math.floor(d / 3600)} jam lalu` : `${Math.floor(d / 86400)} hari lalu`;
+  return d < 3600 ? L("minAgo", Math.floor(d / 60)) : d < 86400 ? L("hAgo", Math.floor(d / 3600)) : L("dAgo", Math.floor(d / 86400));
 }
 function renderScripts() {
   const box = $("slist"), cur = st && st.code;
@@ -210,7 +273,7 @@ function renderScripts() {
     const e = document.createElement("div"); e.className = "sempty"; e.textContent = "⚠ " + scripts.error; box.appendChild(e);
   }
   if (!scripts.items.length && !scripts.error) {
-    const e = document.createElement("div"); e.className = "sempty"; e.textContent = "Tiada skrip di server."; box.appendChild(e);
+    const e = document.createElement("div"); e.className = "sempty"; e.textContent = L("noScripts"); box.appendChild(e);
   }
   for (const it of scripts.items) {
     const b = document.createElement("button");
@@ -219,23 +282,23 @@ function renderScripts() {
     const c = document.createElement("span"); c.className = "c"; c.textContent = it.code;
     const tt = document.createElement("span"); tt.className = "tt"; tt.textContent = it.title;
     r1.append(c, tt);
-    if (it.code === cur) { const n = document.createElement("span"); n.className = "now"; n.textContent = "Dipapar"; r1.appendChild(n); }
+    if (it.code === cur) { const n = document.createElement("span"); n.className = "now"; n.textContent = L("showing"); r1.appendChild(n); }
     const sub = document.createElement("div"); sub.className = "sub";
-    sub.textContent = `${it.name} · ${it.chars} aksara · ${ago(it.updated)}`;
+    sub.textContent = `${it.name} · ${it.chars} ${L("chars")} · ${ago(it.updated)}`;
     b.append(r1, sub);
     b.onclick = () => {
-      if (it.code === cur) { toast("Skrip ini sedang dipapar"); return; }
-      if (!confirm(`Muat skrip ${it.code} — ${it.title}?\nSkrip di skrin sekarang akan diganti.`)) return;
-      buzz(); send({cmd: "load_script", code: it.code}); toast("Memuat skrip…");
+      if (it.code === cur) { toast(L("isShowing")); return; }
+      if (!confirm(L("confirmLoad", it.code, it.title))) return;
+      buzz(); send({cmd: "load_script", code: it.code}); toast(L("loading"));
     };
     box.appendChild(b);
   }
 }
-$("slistbtn").onclick = () => { buzz(); send({cmd: "list_scripts"}); toast("Memuat senarai…"); };
+$("slistbtn").onclick = () => { buzz(); send({cmd: "list_scripts"}); toast(L("listLoading")); };
 $("sreload").onclick = () => {
   buzz();
-  if (!st || !st.code) { toast("Skrip semasa bukan dari server"); return; }
-  send({cmd: "reload_script"}); toast("Memuat semula skrip (posisi kekal)…");
+  if (!st || !st.code) { toast(L("notServer")); return; }
+  send({cmd: "reload_script"}); toast(L("reloading"));
 };
 for (const v of [6, 10, 16, 20]) {
   const b = document.createElement("button");
@@ -324,9 +387,9 @@ async function setWake(on) {
   try {
     if ("wakeLock" in navigator && window.isSecureContext) { lock = await navigator.wakeLock.request("screen"); return; }
   } catch (e) {}
-  try { await v.play(); } catch (e) { toast("Tak dapat kunci skrin. Ketik sekali lagi."); wakeOn = false; $("wake").classList.remove("on"); }
+  try { await v.play(); } catch (e) { toast(L("wakeFail")); wakeOn = false; $("wake").classList.remove("on"); }
 }
-$("wake").onclick = () => { buzz(); setWake(!wakeOn); toast(wakeOn ? "Skrin akan kekal hidup" : "Skrin boleh tidur seperti biasa"); };
+$("wake").onclick = () => { buzz(); setWake(!wakeOn); toast(L(wakeOn ? "wakeOn" : "wakeOff")); };
 document.addEventListener("visibilitychange", () => { if (document.visibilityState === "visible" && wakeOn) setWake(true); });
 
 // ---------- fullscreen
@@ -335,12 +398,13 @@ $("fs").onclick = async () => {
   const d = document, el = d.documentElement;
   if (d.fullscreenElement || d.webkitFullscreenElement) { (d.exitFullscreen || d.webkitExitFullscreen).call(d); return; }
   const req = el.requestFullscreen || el.webkitRequestFullscreen;
-  if (req) { try { await req.call(el); } catch (e) { toast("Skrin penuh tak dibenarkan oleh browser"); } }
-  else toast("iPhone: Share › Add to Home Screen untuk skrin penuh");
+  if (req) { try { await req.call(el); } catch (e) { toast(L("fsFail")); } }
+  else toast(L("iosFs"));
   if (!wakeOn) setWake(true);
 };
 document.addEventListener("fullscreenchange", () => $("fs").classList.toggle("on", !!document.fullscreenElement));
 
+applyLang();
 connect();
 </script>
 </body>

@@ -41,6 +41,8 @@ pub struct Settings {
     pub show_qr: bool,
     /// Random id of the internet-relay session (in the QR link).
     pub remote_session: String,
+    /// UI language: "en" (default) or "ms".
+    pub lang: String,
 }
 
 impl Default for Settings {
@@ -65,11 +67,16 @@ impl Default for Settings {
             match_main: false,
             show_qr: true,
             remote_session: String::new(),
+            lang: "en".into(),
         }
     }
 }
 
 pub fn dir() -> PathBuf {
+    // Separate data folder (demo / screenshots / a second operator profile).
+    if let Some(d) = std::env::var_os("JS_TELE_DATA_DIR") {
+        return PathBuf::from(d);
+    }
     let base = if cfg!(target_os = "windows") {
         std::env::var_os("APPDATA").map(PathBuf::from)
     } else if cfg!(target_os = "macos") {

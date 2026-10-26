@@ -1,10 +1,10 @@
 <!doctype html>
-<html lang="ms">
+<html lang="en">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="robots" content="noindex">
-<title>Admin Teleprompter — JohorStudio</title>
+<title>Teleprompter Admin — JohorStudio</title>
 <style>
 :root{--bg:#0d0d0f;--card:#17171b;--line:#2a2a31;--text:#f2f2f4;--mute:#9a9aa6;--acc:#f5c542;--err:#ff6b6b;--ok:#5ad08a}
 *{box-sizing:border-box}
@@ -33,6 +33,9 @@ td.act a{color:var(--text);margin-right:8px}
 .msg{margin:10px 0;padding:10px 12px;border-radius:9px;display:none}
 .msg.err{display:block;background:#3a1717;color:#ffd0d0}
 .msg.ok{display:block;background:#123222;color:#c8f5d9}
+.langsw{margin-left:auto;display:flex;gap:4px}
+.langsw button{padding:6px 10px;font-size:13px;font-weight:600}
+.langsw button.on{background:var(--acc);border-color:var(--acc);color:#111}
 @media(max-width:700px){.hide-m{display:none}}
 </style>
 </head>
@@ -40,37 +43,64 @@ td.act a{color:var(--text);margin-right:8px}
 <div class="wrap">
   <header>
     <div class="logo">JS</div>
-    <div><h1>Admin Teleprompter</h1><p>JohorStudio.com — urus skrip yang dihantar</p></div>
+    <div><h1 data-i="h1">Teleprompter Admin</h1><p data-i="sub">JohorStudio.com — manage submitted scripts</p></div>
+    <div class="langsw" role="group" aria-label="Language"><button type="button" data-lang="en">EN</button><button type="button" data-lang="ms">BM</button></div>
   </header>
 
   <div class="bar">
-    <input type="search" id="q" placeholder="Cari kod, tajuk, nama atau email…">
-    <select id="age">
-      <option value="0">Semua skrip</option>
-      <option value="7">Lebih lama dari 7 hari</option>
-      <option value="30">Lebih lama dari 30 hari</option>
-      <option value="90">Lebih lama dari 90 hari</option>
+    <input type="search" id="q" data-ip="search" aria-label="Search" placeholder="Search code, title, name or email…">
+    <select id="age" aria-label="Age filter">
+      <option value="0" data-i="all">All scripts</option>
+      <option value="7" data-i="o7">Older than 7 days</option>
+      <option value="30" data-i="o30">Older than 30 days</option>
+      <option value="90" data-i="o90">Older than 90 days</option>
     </select>
-    <button id="reload">⟳ Muat semula</button>
-    <button id="del" class="danger" disabled>Padam dipilih (0)</button>
+    <button id="reload" data-i="reload">⟳ Reload</button>
+    <button id="del" class="danger" disabled>Delete selected (0)</button>
   </div>
   <div id="msg" class="msg"></div>
 
   <div class="card">
     <table>
       <thead><tr>
-        <th style="width:34px"><input type="checkbox" id="all" title="Pilih semua"></th>
-        <th>Kod</th><th>Tajuk / Pengirim</th><th class="hide-m">Aksara</th><th class="hide-m">Dikemas kini</th><th></th>
+        <th style="width:34px"><input type="checkbox" id="all" aria-label="Select all"></th>
+        <th data-i="code">Code</th><th data-i="title">Title / sender</th><th class="hide-m" data-i="chars">Chars</th><th class="hide-m" data-i="updated">Updated</th><th></th>
       </tr></thead>
-      <tbody id="rows"><tr><td colspan="6" class="empty">Memuat…</td></tr></tbody>
+      <tbody id="rows"><tr><td colspan="6" class="empty" data-i="loading">Loading…</td></tr></tbody>
     </table>
   </div>
 </div>
 <script>
 const $ = s => document.querySelector(s);
 let data = [], sel = new Set();
+const I18N = {
+  en: {h1: "Teleprompter Admin", sub: "JohorStudio.com — manage submitted scripts", search: "Search code, title, name or email…",
+    all: "All scripts", o7: "Older than 7 days", o30: "Older than 30 days", o90: "Older than 90 days", reload: "⟳ Reload",
+    delSel: "Delete selected ({0})", code: "Code", title: "Title / sender", chars: "Chars", updated: "Updated", loading: "Loading…",
+    view: "View", none: "No scripts.", loadFail: "Could not load the list: {0}", one: "script {0}", many: "{0} scripts",
+    confirm: "Delete {0}? This cannot be undone.", partial: "{0} deleted, failed: {1}", done: "{0} script(s) deleted.", delOne: "Delete {0}"},
+  ms: {h1: "Admin Teleprompter", sub: "JohorStudio.com — urus skrip yang dihantar", search: "Cari kod, tajuk, nama atau email…",
+    all: "Semua skrip", o7: "Lebih lama dari 7 hari", o30: "Lebih lama dari 30 hari", o90: "Lebih lama dari 90 hari", reload: "⟳ Muat semula",
+    delSel: "Padam dipilih ({0})", code: "Kod", title: "Tajuk / Pengirim", chars: "Aksara", updated: "Dikemas kini", loading: "Memuat…",
+    view: "Lihat", none: "Tiada skrip.", loadFail: "Gagal memuat senarai: {0}", one: "skrip {0}", many: "{0} skrip",
+    confirm: "Padam {0}? Tindakan ini tidak boleh diundur.", partial: "{0} dipadam, gagal: {1}", done: "{0} skrip dipadam.", delOne: "Padam {0}"},
+};
+let lang = "en";
+try { lang = localStorage.getItem("tele-lang") || "en"; } catch (e) {}
+if (!I18N[lang]) lang = "en";
+const L = (k, ...a) => (I18N[lang][k] ?? I18N.en[k]).replace(/\{(\d)\}/g, (_, i) => a[i]);
+function applyLang() {
+  document.documentElement.lang = lang;
+  document.querySelectorAll("[data-i]").forEach(e => e.textContent = L(e.dataset.i));
+  document.querySelectorAll("[data-ip]").forEach(e => e.placeholder = L(e.dataset.ip));
+  document.querySelectorAll("[data-lang]").forEach(b => { b.classList.toggle("on", b.dataset.lang === lang); b.setAttribute("aria-pressed", b.dataset.lang === lang); });
+  if (data.length || loaded) render();
+}
+document.querySelectorAll("[data-lang]").forEach(b => b.onclick = () => { lang = b.dataset.lang; try { localStorage.setItem("tele-lang", lang); } catch (e) {} applyLang(); });
+let loaded = false;
+
 const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
-const when = t => new Date(t * 1000).toLocaleString("ms-MY", {dateStyle: "medium", timeStyle: "short"});
+const when = t => new Date(t * 1000).toLocaleString(lang === "ms" ? "ms-MY" : "en-GB", {dateStyle: "medium", timeStyle: "short"});
 function msg(text, ok) { const m = $("#msg"); m.textContent = text; m.className = "msg " + (ok ? "ok" : "err"); }
 
 function visible() {
@@ -89,32 +119,32 @@ function render() {
       <td>${esc(r.title)}<div class="sub">${esc(r.name)} · ${esc(r.email)}</div></td>
       <td class="hide-m sub">${r.chars}</td>
       <td class="hide-m sub">${when(r.updated)}</td>
-      <td class="act"><a href="/s/${r.code}" target="_blank" rel="noopener">Lihat</a><button data-del="${r.code}">🗑</button></td>
-    </tr>`).join("") : `<tr><td colspan="6" class="empty">Tiada skrip.</td></tr>`;
+      <td class="act"><a href="/s/${r.code}" target="_blank" rel="noopener">${L("view")}</a><button data-del="${r.code}" aria-label="${L("delOne", r.code)}">🗑</button></td>
+    </tr>`).join("") : `<tr><td colspan="6" class="empty">${L("none")}</td></tr>`;
   $("#all").checked = rows.length > 0 && rows.every(r => sel.has(r.code));
   $("#del").disabled = sel.size === 0;
-  $("#del").textContent = `Padam dipilih (${sel.size})`;
+  $("#del").textContent = L("delSel", sel.size);
 }
 
 async function load() {
   try {
     const r = await fetch("/admin/api/scripts", {cache: "no-store"});
     if (!r.ok) throw new Error("HTTP " + r.status);
-    data = await r.json(); render();
-  } catch (e) { msg("Gagal memuat senarai: " + e.message); }
+    data = await r.json(); loaded = true; render();
+  } catch (e) { msg(L("loadFail", e.message)); }
 }
 
 async function remove(codes) {
   if (!codes.length) return;
-  const label = codes.length === 1 ? `skrip ${codes[0]}` : `${codes.length} skrip`;
-  if (!confirm(`Padam ${label}? Tindakan ini tidak boleh diundur.`)) return;
+  const label = codes.length === 1 ? L("one", codes[0]) : L("many", codes.length);
+  if (!confirm(L("confirm", label))) return;
   let ok = 0, fail = [];
   for (const c of codes) {
     const r = await fetch(`/admin/api/scripts/${c}`, {method: "DELETE"}).catch(() => null);
     if (r && r.ok) { ok++; sel.delete(c); data = data.filter(x => x.code !== c); } else fail.push(c);
   }
   render();
-  msg(fail.length ? `${ok} dipadam, gagal: ${fail.join(", ")}` : `${ok} skrip dipadam.`, !fail.length);
+  msg(fail.length ? L("partial", ok, fail.join(", ")) : L("done", ok), !fail.length);
 }
 
 $("#rows").addEventListener("change", e => {
@@ -127,6 +157,7 @@ $("#del").addEventListener("click", () => remove([...sel]));
 $("#q").addEventListener("input", render);
 $("#age").addEventListener("change", render);
 $("#reload").addEventListener("click", load);
+applyLang();
 load();
 </script>
 </body>
