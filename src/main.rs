@@ -520,6 +520,16 @@ impl App {
                 egui::FontId::proportional(16.0),
                 Color32::WHITE,
             );
+            egui::ComboBox::from_id_salt("default_speed")
+                .selected_text(format!("{}x", self.s.default_speed))
+                .width(60.0)
+                .show_ui(ui, |ui| {
+                    for v in 1..=20 {
+                        ui.selectable_value(&mut self.s.default_speed, v, format!("{v}x"));
+                    }
+                })
+                .response
+                .on_hover_text("Laju bila tekan Space");
             if ui.button("◀").on_hover_text("Perlahan / undur (←)").clicked() {
                 self.speed_level = (self.speed_level - 1).max(-20);
             }
@@ -949,26 +959,7 @@ impl eframe::App for App {
 
         egui::Panel::top("top").show(ui, |ui| {
             ui.add_space(4.0);
-            ui.horizontal(|ui| {
-                ui.with_layout(egui::Layout::right_to_left(Align::Center), |ui| {
-                    egui::ComboBox::from_id_salt("default_speed")
-                        .selected_text(format!("{}x", self.s.default_speed))
-                        .width(70.0)
-                        .show_ui(ui, |ui| {
-                            for v in 1..=20 {
-                                ui.selectable_value(&mut self.s.default_speed, v, format!("{v}x"));
-                            }
-                        })
-                        .response
-                        .on_hover_text("Laju bila tekan Space");
-                    ui.label("Laju Space:");
-                    ui.separator();
-                    ui.with_layout(
-                        egui::Layout::left_to_right(Align::Center).with_main_wrap(true),
-                        |ui| self.top_bar(ui),
-                    );
-                });
-            });
+            self.top_bar(ui);
             ui.horizontal(|ui| {
                 if !self.loaded_title.is_empty() {
                     ui.label(
