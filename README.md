@@ -23,5 +23,6 @@ cargo build --release              # binary in target/release
 ## Script server (tele.johorstudio.com)
 
 `server/` is a small Python (stdlib only) web app + SQLite: the public submits scripts and gets a code by email;
-the Mac app lists/loads them with the admin token. It runs as the TrueNAS custom app `teleprompter`
+the Mac app lists/loads/deletes them with the admin token. A web admin at `/admin` (list, search, delete one or many)
+is protected by Cloudflare Access, and the server also verifies the Access JWT itself. It runs as the TrueNAS custom app `teleprompter`
 (see `deploy/truenas-app.yaml`, data in `/mnt/ssd/teleprompter`), published through the Cloudflare tunnel.

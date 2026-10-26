@@ -181,6 +181,7 @@ struct App {
     displays: Vec<Disp>,
     code_input: String,
     list: Vec<ListItem>,
+    confirm_delete: Option<String>,
     status: String,
     loaded_title: String,
     tx: mpsc::Sender<NetMsg>,
@@ -232,6 +233,7 @@ impl App {
             displays,
             code_input: String::new(),
             list: Vec::new(),
+            confirm_delete: None,
             status: String::new(),
             loaded_title: String::new(),
             tx,
@@ -374,6 +376,11 @@ impl App {
                     self.list = l;
                 }
                 NetMsg::List(Err(e)) => self.status = format!("Gagal senarai: {e}"),
+                NetMsg::Deleted(code, Ok(())) => {
+                    self.list.retain(|it| it.code != code);
+                    self.status = format!("Skrip {code} dipadam");
+                }
+                NetMsg::Deleted(code, Err(e)) => self.status = format!("Gagal padam {code}: {e}"),
             }
         }
     }
@@ -901,7 +908,8 @@ impl App {
                 });
                 if !self.list.is_empty() {
                     let mut load: Option<String> = None;
-                    egui::ScrollArea::vertical().max_height(240.0).show(ui, |ui| {
+                    let mut delete: Option<String> = None;
+                    egui::ScrollArea::vertical().max_height(260.0).show(ui, |ui| {
                         for it in &self.list {
                             let txt = format!(
                                 "{}  {}\n{} · {} · {} aksara · {}",
@@ -912,14 +920,43 @@ impl App {
                                 it.chars,
                                 fmt_age(it.updated)
                             );
-                            let b = egui::Button::new(txt)
-                                .wrap()
-                                .min_size(vec2(ui.available_width(), 0.0));
-                            if ui.add(b).clicked() {
-                                load = Some(it.code.clone());
-                            }
+                            ui.horizontal(|ui| {
+                                let confirming = self.confirm_delete.as_deref() == Some(&it.code);
+                                let side = if confirming { 150.0 } else { 34.0 };
+                                let b = egui::Button::new(txt)
+                                    .wrap()
+                                    .min_size(vec2((ui.available_width() - side).max(80.0), 0.0));
+                                if ui.add(b).on_hover_text("Klik untuk muat skrip").clicked() {
+                                    load = Some(it.code.clone());
+                                }
+                                if confirming {
+                                    let yes = egui::Button::new(
+                                        egui::RichText::new("Padam").color(Color32::WHITE),
+                                    )
+                                    .fill(Color32::from_rgb(190, 40, 40));
+                                    if ui.add(yes).clicked() {
+                                        delete = Some(it.code.clone());
+                                    }
+                                    if ui.button("Batal").clicked() {
+                                        self.confirm_delete = None;
+                                    }
+                                } else if ui.button("🗑").on_hover_text("Padam skrip ini").clicked() {
+                                    self.confirm_delete = Some(it.code.clone());
+                                }
+                            });
                         }
                     });
+                    if let Some(code) = delete {
+                        self.confirm_delete = None;
+                        self.status = format!("Memadam {code}…");
+                        net::delete_script(
+                            self.s.server_url.clone(),
+                            self.s.admin_token.clone(),
+                            code,
+                            self.tx.clone(),
+                            ui.ctx().clone(),
+                        );
+                    }
                     if let Some(code) = load {
                         self.code_input = code.clone();
                         self.load_code(code, &ui.ctx().clone());

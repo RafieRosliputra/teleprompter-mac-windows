@@ -14,8 +14,15 @@ Public:
 Admin (header  Authorization: Bearer <ADMIN_TOKEN>):
   GET    /api/admin/scripts         list (no content)
   DELETE /api/admin/scripts/<code>  delete
+Web admin (behind Cloudflare Access; the Access JWT is verified here too):
+  GET    /admin                     admin page (list + delete)
+  GET    /admin/api/scripts         list
+  DELETE /admin/api/scripts/<code>  delete
 """
+import base64
+import hashlib
 import json
+import urllib.request
 import os
 import re
 import secrets
@@ -42,6 +49,12 @@ SMTP_VERIFY = os.environ.get("SMTP_VERIFY", "false").lower() == "true"
 EMAIL_FROM = os.environ.get("EMAIL_FROM", "JohorStudio <noreply@johorstudio.com>")
 REPLY_TO = os.environ.get("REPLY_TO", "")
 NOTIFY_EMAIL = os.environ.get("NOTIFY_EMAIL", "")  # owner gets a copy of each new script
+# Cloudflare Access (web admin at /admin)
+CF_ACCESS_TEAM = os.environ.get("CF_ACCESS_TEAM", "")  # e.g. "johorstudio"
+CF_ACCESS_AUD = os.environ.get("CF_ACCESS_AUD", "")
+ADMIN_EMAILS = {
+    e.strip().lower() for e in os.environ.get("ADMIN_EMAILS", "").split(",") if e.strip()
+}
 MAX_CONTENT = 300_000
 CODE_RE = re.compile(r"^\d{6}$")
 EMAIL_RE = re.compile(r"^[^@\s]+@[^@\s]+\.[^@\s]+$")
@@ -162,6 +175,83 @@ def clean(s, n):
     return (s or "").replace("\r\n", "\n").replace("\r", "\n").strip()[:n]
 
 
+# ---------------------------------------------------------------- Cloudflare Access
+# Verifies the Cf-Access-Jwt-Assertion header (RS256) against the team's public
+# keys, so a request that bypasses Cloudflare (e.g. straight to :8130 on the LAN)
+# can't fake being the admin.
+_keys = {"at": 0.0, "keys": {}}
+_keys_lock = threading.Lock()
+_SHA256_PREFIX = bytes.fromhex("3031300d060960864801650304020105000420")
+
+
+def _b64u(s):
+    return base64.urlsafe_b64decode(s + "=" * (-len(s) % 4))
+
+
+def _access_keys(force=False):
+    with _keys_lock:
+        if force or time.time() - _keys["at"] > 3600 or not _keys["keys"]:
+            url = f"https://{CF_ACCESS_TEAM}.cloudflareaccess.com/cdn-cgi/access/certs"
+            with urllib.request.urlopen(url, timeout=10) as r:
+                data = json.load(r)
+            _keys["keys"] = {
+                k["kid"]: (int.from_bytes(_b64u(k["n"]), "big"), int.from_bytes(_b64u(k["e"]), "big"))
+                for k in data.get("keys", [])
+                if k.get("kty") == "RSA"
+            }
+            _keys["at"] = time.time()
+        return _keys["keys"]
+
+
+def access_email(token):
+    """Email of a valid Cloudflare Access user, else None."""
+    if not (token and CF_ACCESS_TEAM and CF_ACCESS_AUD):
+        return None
+    try:
+        h64, p64, s64 = token.split(".")
+        hdr = json.loads(_b64u(h64))
+        if hdr.get("alg") != "RS256":
+            return None
+        keys = _access_keys()
+        if hdr.get("kid") not in keys:
+            keys = _access_keys(force=True)
+        n, e = keys[hdr["kid"]]
+        k = (n.bit_length() + 7) // 8
+        em = pow(int.from_bytes(_b64u(s64), "big"), e, n).to_bytes(k, "big")
+        digest = hashlib.sha256(f"{h64}.{p64}".encode()).digest()
+        want = b"\x00\x01" + b"\xff" * (k - 3 - len(_SHA256_PREFIX) - 32) + b"\x00" + _SHA256_PREFIX + digest
+        if not secrets.compare_digest(em, want):
+            return None
+        claims = json.loads(_b64u(p64))
+        aud = claims.get("aud")
+        aud = aud if isinstance(aud, list) else [aud]
+        if CF_ACCESS_AUD not in aud:
+            return None
+        if claims.get("iss") != f"https://{CF_ACCESS_TEAM}.cloudflareaccess.com":
+            return None
+        if float(claims.get("exp", 0)) < time.time():
+            return None
+        email = (claims.get("email") or "").lower()
+        return email if email and (not ADMIN_EMAILS or email in ADMIN_EMAILS) else None
+    except Exception as ex:
+        print(f"[access] verify failed: {ex!r}", flush=True)
+        return None
+
+
+def list_scripts():
+    with db() as c:
+        rows = c.execute(
+            "SELECT code,title,name,email,created,updated,length(content) AS chars "
+            "FROM scripts ORDER BY updated DESC"
+        ).fetchall()
+    return [dict(r) for r in rows]
+
+
+def delete_script(code):
+    with _db_lock, db() as c:
+        c.execute("DELETE FROM scripts WHERE code=?", (code,))
+
+
 # ---------------------------------------------------------------- http
 class H(BaseHTTPRequestHandler):
     server_version = "JSTele/1.0"
@@ -205,6 +295,10 @@ class H(BaseHTTPRequestHandler):
         auth = self.headers.get("Authorization", "")
         return bool(ADMIN_TOKEN) and secrets.compare_digest(auth, f"Bearer {ADMIN_TOKEN}")
 
+    def web_admin(self):
+        """Cloudflare Access user allowed into /admin (JWT verified), else None."""
+        return access_email(self.headers.get("Cf-Access-Jwt-Assertion", ""))
+
     def code_from(self, prefix):
         code = self.path.split("?")[0][len(prefix):].strip("/")
         return code if CODE_RE.match(code) else None
@@ -220,15 +314,17 @@ class H(BaseHTTPRequestHandler):
                 return self.send(200, f.read(), "text/html; charset=utf-8")
         if p == "/healthz":
             return self.send(200, {"ok": True})
+        if p == "/admin" or p.startswith("/admin/"):
+            if not self.web_admin():
+                return self.send(403, "Akses ditolak.", "text/plain; charset=utf-8")
+            if p.startswith("/admin/api/scripts"):
+                return self.send(200, list_scripts())
+            with open(os.path.join(HERE, "admin.html"), "rb") as f:
+                return self.send(200, f.read(), "text/html; charset=utf-8")
         if p.startswith("/api/admin/scripts"):
             if not self.is_admin():
                 return self.err(401, "unauthorized")
-            with db() as c:
-                rows = c.execute(
-                    "SELECT code,title,name,email,created,updated,length(content) AS chars "
-                    "FROM scripts ORDER BY updated DESC"
-                ).fetchall()
-            return self.send(200, [dict(r) for r in rows])
+            return self.send(200, list_scripts())
         if p.startswith("/api/scripts/"):
             code = self.code_from("/api/scripts/")
             admin = self.is_admin()
@@ -327,13 +423,23 @@ class H(BaseHTTPRequestHandler):
 
     # ---- DELETE
     def do_DELETE(self):
-        if not self.is_admin():
-            return self.err(401, "unauthorized")
-        code = self.code_from("/api/admin/scripts/")
+        p = self.path.split("?")[0]
+        if p.startswith("/admin/api/scripts/"):
+            who = self.web_admin()
+            if not who:
+                return self.err(403, "forbidden")
+            code = self.code_from("/admin/api/scripts/")
+        elif p.startswith("/api/admin/scripts/"):
+            if not self.is_admin():
+                return self.err(401, "unauthorized")
+            who = "app"
+            code = self.code_from("/api/admin/scripts/")
+        else:
+            return self.err(404, "not found")
         if not code:
             return self.err(404, "Kod tidak sah")
-        with _db_lock, db() as c:
-            c.execute("DELETE FROM scripts WHERE code=?", (code,))
+        delete_script(code)
+        print(f"[admin] {who} deleted {code}", flush=True)
         return self.send(200, {"ok": True})
 
 

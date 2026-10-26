@@ -28,6 +28,8 @@ pub struct ListItem {
 pub enum NetMsg {
     Script(Result<Script, String>),
     List(Result<Vec<ListItem>, String>),
+    /// (code, result) of an admin delete.
+    Deleted(String, Result<(), String>),
 }
 
 fn agent() -> ureq::Agent {
@@ -82,6 +84,35 @@ pub fn fetch_list(base: String, token: String, tx: Sender<NetMsg>, ctx: eframe::
             get_json(&url, &token)
         };
         let _ = tx.send(NetMsg::List(r));
+        ctx.request_repaint();
+    });
+}
+
+pub fn delete_script(
+    base: String,
+    token: String,
+    code: String,
+    tx: Sender<NetMsg>,
+    ctx: eframe::egui::Context,
+) {
+    thread::spawn(move || {
+        let url = format!("{}/api/admin/scripts/{}", base.trim_end_matches('/'), code);
+        let r = (|| {
+            if token.is_empty() {
+                return Err("Token admin belum diisi (Tetapan)".to_string());
+            }
+            let resp = agent()
+                .delete(&url)
+                .header("Authorization", &format!("Bearer {token}"))
+                .call()
+                .map_err(|e| format!("Rangkaian: {e}"))?;
+            let status = resp.status().as_u16();
+            if status >= 400 {
+                return Err(format!("HTTP {status}"));
+            }
+            Ok(())
+        })();
+        let _ = tx.send(NetMsg::Deleted(code, r));
         ctx.request_repaint();
     });
 }
