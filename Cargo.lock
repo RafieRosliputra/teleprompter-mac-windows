@@ -3324,7 +3324,7 @@ dependencies = [
 
 [[package]]
 name = "teleprompter-mac-windows"
-version = "0.1.2"
+version = "0.1.3"
 dependencies = [
  "display-info",
  "eframe",

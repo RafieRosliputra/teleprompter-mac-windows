@@ -1,4 +1,4 @@
-# Johor Studio Teleprompter
+# JohorStudio Teleprompter
 
 Two-screen presidential teleprompter written in Rust (egui). macOS now, Windows later.
 
@@ -9,9 +9,9 @@ Two-screen presidential teleprompter written in Rust (egui). macOS now, Windows 
 
 ## Download (Mac)
 
-Get `Johor-Studio-Teleprompter-mac-arm64.zip` from [Releases](../../releases), unzip, move the app to Applications.
+Get `JohorStudio-Teleprompter-mac-arm64.zip` from [Releases](../../releases), unzip, move the app to Applications.
 The app is not notarized: the first time, right-click the app → **Open** → **Open**
-(or run `xattr -dr com.apple.quarantine "/Applications/Johor Studio Teleprompter.app"`).
+(or run `xattr -dr com.apple.quarantine "/Applications/JohorStudio Teleprompter.app"`).
 
 ## Build
 

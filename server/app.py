@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Johor Studio Teleprompter — script server (tele.johorstudio.com).
+"""JohorStudio Teleprompter — script server (tele.johorstudio.com).
 
 Python standard library only (no pip install), so it runs straight from the
 official `python:3.13-alpine` image with this folder mounted.
@@ -39,7 +39,7 @@ SMTP_USER = os.environ.get("SMTP_USER", "")
 SMTP_PASSWORD = os.environ.get("SMTP_PASSWORD", "")
 SMTP_STARTTLS = os.environ.get("SMTP_STARTTLS", "true").lower() == "true"
 SMTP_VERIFY = os.environ.get("SMTP_VERIFY", "false").lower() == "true"
-EMAIL_FROM = os.environ.get("EMAIL_FROM", "Johor Studio <noreply@johorstudio.com>")
+EMAIL_FROM = os.environ.get("EMAIL_FROM", "JohorStudio <noreply@johorstudio.com>")
 REPLY_TO = os.environ.get("REPLY_TO", "")
 NOTIFY_EMAIL = os.environ.get("NOTIFY_EMAIL", "")  # owner gets a copy of each new script
 MAX_CONTENT = 300_000
@@ -128,13 +128,13 @@ def mail_async(*args):
 def code_email(name, title, code):
     return (
         f"Salam {name},\n\n"
-        f"Terima kasih kerana menghantar skrip teleprompter kepada Johor Studio.\n\n"
+        f"Terima kasih kerana menghantar skrip teleprompter kepada JohorStudio.\n\n"
         f"Tajuk : {title}\n"
         f"Kod   : {code}\n\n"
         f"Simpan kod 6 digit ini. Anda boleh buka dan edit skrip ini bila-bila masa sebelum acara:\n"
         f"{PUBLIC_URL}/s/{code}\n\n"
-        f"Berikan kod ini kepada krew Johor Studio pada hari acara.\n\n"
-        f"— Johor Studio\nhttps://johorstudio.com\n"
+        f"Berikan kod ini kepada krew JohorStudio pada hari acara.\n\n"
+        f"— JohorStudio.com\nhttps://johorstudio.com\n"
     )
 
 
@@ -290,7 +290,7 @@ class H(BaseHTTPRequestHandler):
                     mail_async(
                         email,
                         "Kod skrip teleprompter anda",
-                        f"Salam,\n\nBerikut kod skrip yang didaftarkan dengan email ini:\n\n{lines}\n\n— Johor Studio\n",
+                        f"Salam,\n\nBerikut kod skrip yang didaftarkan dengan email ini:\n\n{lines}\n\n— JohorStudio.com\n",
                     )
             # Same answer either way: don't reveal which emails exist.
             return self.send(200, {"ok": True})

@@ -1,4 +1,4 @@
-//! Johor Studio Teleprompter — two-screen presidential teleprompter.
+//! JohorStudio Teleprompter — two-screen presidential teleprompter.
 //!
 //! Main window (operator):  left 2/3 = script (click a line to jump to it),
 //!                          right 1/3 = live preview of screen 2 + controls.
@@ -45,13 +45,13 @@ fn main() -> eframe::Result {
     disable_window_tabbing();
     let options = eframe::NativeOptions {
         viewport: ViewportBuilder::default()
-            .with_title("Johor Studio Teleprompter")
+            .with_title("JohorStudio Teleprompter")
             .with_inner_size([1400.0, 860.0])
             .with_min_inner_size([900.0, 560.0]),
         ..Default::default()
     };
     eframe::run_native(
-        "Johor Studio Teleprompter",
+        "JohorStudio Teleprompter",
         options,
         Box::new(|cc| Ok(Box::new(App::new(&cc.egui_ctx)))),
     )
@@ -187,7 +187,7 @@ struct App {
     rx: mpsc::Receiver<NetMsg>,
 }
 
-const SAMPLE: &str = "Selamat datang ke Johor Studio Teleprompter.\n\n\
+const SAMPLE: &str = "Selamat datang ke JohorStudio Teleprompter.\n\n\
 Tampal skrip anda dengan butang **Edit skrip**, buka fail .txt, \
 atau muat skrip dari tele.johorstudio.com menggunakan kod 6 digit.\n\n\
 [CUE: senyum ke kamera]\n\n\
