@@ -199,6 +199,11 @@ struct App {
     qr_internet: bool,
     layout_key: u64,
     layout_ver: u64,
+    scripts_ver: u64,
+    /// Code of the script loaded from the server (for "reload").
+    loaded_code: Option<String>,
+    /// Scroll to restore after a reload of the same script.
+    keep_scroll: Option<f32>,
 }
 
 const SAMPLE: &str = "Selamat datang ke JohorStudio Teleprompter.\n\n\
@@ -264,6 +269,9 @@ impl App {
             qr_internet: true,
             layout_key: 0,
             layout_ver: 0,
+            scripts_ver: 0,
+            loaded_code: None,
+            keep_scroll: None,
         };
         app.set_relay();
         app
@@ -330,8 +338,49 @@ impl App {
                         self.follow = true;
                     }
                 }
+                remote::Cmd::ListScripts => {
+                    self.status = "Telefon minta senarai skrip…".into();
+                    net::fetch_list(
+                        self.s.server_url.clone(),
+                        self.s.admin_token.clone(),
+                        self.tx.clone(),
+                        ctx.clone(),
+                    );
+                }
+                remote::Cmd::LoadScript { code } => {
+                    if code.len() == 6 && code.chars().all(|c| c.is_ascii_digit()) {
+                        self.code_input = code.clone();
+                        self.load_code(code, ctx);
+                    }
+                }
+                remote::Cmd::ReloadScript => {
+                    if let Some(code) = self.loaded_code.clone() {
+                        self.keep_scroll = Some(self.scroll);
+                        self.load_code(code, ctx);
+                    } else {
+                        self.publish_scripts(None, Some("Tiada skrip dari server untuk dimuat semula"));
+                    }
+                }
             }
         }
+    }
+
+    /// Hand the phone the script list (or an error message).
+    fn publish_scripts(&mut self, _ok: Option<()>, err: Option<&str>) {
+        let items: Vec<serde_json::Value> = self
+            .list
+            .iter()
+            .map(|it| {
+                serde_json::json!({"code": it.code, "title": it.title, "name": it.name,
+                    "chars": it.chars, "updated": it.updated})
+            })
+            .collect();
+        let body = serde_json::json!({"items": items, "error": err}).to_string();
+        self.scripts_ver += 1;
+        let msg = format!(r#"{{"t":"scripts",{}"#, &body[1..]);
+        let mut g = self.remote.lock().unwrap();
+        g.scripts = msg;
+        g.scripts_ver = self.scripts_ver;
     }
 
     /// Hand the phone the screen-2 rows (when they change) and the live state.
@@ -360,7 +409,7 @@ impl App {
         }
         let (row, rows) = pmap.row_index(self.scroll);
         let state = format!(
-            r#"{{"t":"state","ver":{},"y":{:.1},"spd":{},"paused":{},"def":{},"fs":{:.0},"row":{},"rows":{},"title":{}}}"#,
+            r#"{{"t":"state","ver":{},"y":{:.1},"spd":{},"paused":{},"def":{},"fs":{:.0},"row":{},"rows":{},"code":{},"title":{}}}"#,
             self.layout_ver,
             self.scroll,
             self.speed_level,
@@ -369,6 +418,7 @@ impl App {
             self.s.font_size,
             row + 1,
             rows,
+            serde_json::to_string(&self.loaded_code).unwrap_or_else(|_| "null".into()),
             serde_json::to_string(&self.loaded_title).unwrap_or_else(|_| "\"\"".into()),
         );
         let mut g = self.remote.lock().unwrap();
@@ -641,17 +691,28 @@ impl App {
                 NetMsg::Script(Ok(sc)) => {
                     self.status = format!("Dimuat: {} ({}) — kod {}", sc.title, sc.name, sc.code);
                     let t = format!("{} — {}", sc.code, sc.title);
+                    let same = self.loaded_code.as_deref() == Some(sc.code.as_str());
+                    let keep = self.keep_scroll.take().filter(|_| same);
+                    self.loaded_code = Some(sc.code.clone());
                     self.set_script(sc.content, t);
+                    if let Some(y) = keep {
+                        self.scroll = y;
+                    }
                 }
                 NetMsg::Script(Err(e)) => self.status = format!("Gagal muat skrip: {e}"),
                 NetMsg::List(Ok(l)) => {
                     self.status = format!("{} skrip di server", l.len());
                     self.list = l;
+                    self.publish_scripts(Some(()), None);
                 }
-                NetMsg::List(Err(e)) => self.status = format!("Gagal senarai: {e}"),
+                NetMsg::List(Err(e)) => {
+                    self.status = format!("Gagal senarai: {e}");
+                    self.publish_scripts(None, Some(&e));
+                }
                 NetMsg::Deleted(code, Ok(())) => {
                     self.list.retain(|it| it.code != code);
                     self.status = format!("Skrip {code} dipadam");
+                    self.publish_scripts(Some(()), None);
                 }
                 NetMsg::Deleted(code, Err(e)) => self.status = format!("Gagal padam {code}: {e}"),
             }
@@ -879,6 +940,7 @@ impl App {
                                 .map(|n| n.to_string_lossy().to_string())
                                 .unwrap_or_default();
                             self.status = format!("Fail dibuka: {name}");
+                            self.loaded_code = None;
                             self.set_script(t, name);
                         }
                         Err(e) => self.status = format!("Gagal buka fail: {e}"),

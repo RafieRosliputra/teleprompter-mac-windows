@@ -14,7 +14,7 @@
 *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
 html,body{margin:0;height:100%;background:var(--bg);color:var(--text);font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;overscroll-behavior:none;-webkit-user-select:none;user-select:none}
 body{touch-action:manipulation}
-.app{height:100dvh;display:flex;flex-direction:column;gap:12px;padding:calc(14px + env(safe-area-inset-top)) 16px calc(16px + env(safe-area-inset-bottom))}
+.app{min-height:100dvh;display:flex;flex-direction:column;gap:12px;padding:calc(14px + env(safe-area-inset-top)) 16px calc(16px + env(safe-area-inset-bottom))}
 button{font:inherit;color:var(--text);background:var(--card);border:1px solid var(--line);cursor:pointer}
 button:active{transform:scale(.96);filter:brightness(1.25)}
 .top{display:flex;align-items:center;justify-content:space-between;gap:10px}
@@ -27,7 +27,7 @@ button:active{transform:scale(.96);filter:brightness(1.25)}
 .title{display:flex;align-items:baseline;justify-content:space-between;gap:10px}
 .title b{font-size:17px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .title span{font-size:13px;color:var(--acc);font-weight:700}
-.pv{position:relative;flex:1 1 auto;min-height:170px;background:#000;border:1px solid var(--line);border-radius:12px;overflow:hidden;touch-action:none}
+.pv{position:relative;flex:none;height:clamp(200px,42vh,400px);background:#000;border:1px solid var(--line);border-radius:12px;overflow:hidden;touch-action:none}
 .pv canvas{position:absolute;inset:0;width:100%;height:100%}
 .tag{position:absolute;bottom:8px;font-size:11px;padding:3px 8px;border-radius:999px;pointer-events:none}
 .tag.l{left:10px;color:#c9c9d2;background:rgba(0,0,0,.7)}
@@ -39,7 +39,7 @@ button:active{transform:scale(.96);filter:brightness(1.25)}
 .side{width:76px;height:76px;border-radius:22px;display:grid;place-items:center}
 .play{width:118px;height:118px;border-radius:50%;border:0;background:var(--acc);color:#111;display:grid;place-items:center}
 .lbl{font-size:12px;color:var(--mute);margin-bottom:6px}
-.chips{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:6px}
+.chips{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:6px}
 .chips button{height:44px;border-radius:10px}
 .chips button.on{background:var(--acc);border-color:var(--acc);color:#111;font-weight:800}
 .grid4{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:8px}
@@ -49,6 +49,20 @@ button:active{transform:scale(.96);filter:brightness(1.25)}
 .font div{display:flex;align-items:center;gap:6px}
 .font button{width:44px;height:44px;border-radius:10px;background:#0f0f12;font-size:22px}
 .font b{width:44px;text-align:center;font-size:18px}
+.scripts{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:12px;display:flex;flex-direction:column;gap:10px}
+.shead{display:flex;align-items:center;justify-content:space-between;gap:8px}
+.shead b{font-size:16px}
+.shead div{display:flex;gap:6px}
+.shead button{height:40px;padding:0 10px;border-radius:10px;background:#0f0f12;font-size:13px}
+.slist{display:flex;flex-direction:column;gap:6px}
+.sitem{width:100%;text-align:left;padding:10px 12px;border-radius:10px;background:#0f0f12;display:flex;flex-direction:column;gap:2px}
+.sitem.on{border-color:var(--acc);background:#2a2412}
+.sitem .r1{display:flex;gap:8px;align-items:baseline}
+.sitem .c{color:var(--acc);font-weight:800;font-size:14px}
+.sitem .tt{font-weight:600;font-size:15px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.sitem .sub{font-size:12px;color:var(--mute)}
+.sitem .now{font-size:11px;color:#111;background:var(--acc);border-radius:999px;padding:1px 7px;margin-left:auto;font-weight:700}
+.sempty{font-size:13px;color:var(--mute);padding:6px 2px}
 .toast{position:fixed;left:50%;bottom:calc(20px + env(safe-area-inset-bottom));transform:translateX(-50%);background:#26262c;border:1px solid #3a3a42;color:var(--text);padding:10px 14px;border-radius:10px;font-size:13px;opacity:0;transition:opacity .25s;pointer-events:none;max-width:90%;text-align:center}
 .toast.show{opacity:1}
 video{position:fixed;width:1px;height:1px;opacity:0;pointer-events:none}
@@ -111,6 +125,17 @@ video{position:fixed;width:1px;height:1px;opacity:0;pointer-events:none}
       <button id="fplus" aria-label="Besarkan huruf Skrin 2">+</button>
     </div>
   </div>
+
+  <div class="scripts">
+    <div class="shead">
+      <b>Skrip</b>
+      <div>
+        <button id="sreload" aria-label="Muat semula skrip semasa dari server">⟳ Muat semula skrip</button>
+        <button id="slistbtn" aria-label="Muat semula senarai skrip">⟳ Senarai</button>
+      </div>
+    </div>
+    <div class="slist" id="slist"><div class="sempty">Memuat senarai skrip…</div></div>
+  </div>
 </div>
 <div class="toast" id="toast"></div>
 <video id="ns" playsinline muted loop src="data:video/mp4;base64,AAAAIGZ0eXBpc29tAAACAGlzb21pc28yYXZjMW1wNDEAAANcbW9vdgAAAGxtdmhkAAAAAAAAAAAAAAAAAAAD6AAAC7gAAQAAAQAAAAAAAAAAAAAAAAEAAAAAAAAAAAAAAAAAAAABAAAAAAAAAAAAAAAAAABAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAgAAAod0cmFrAAAAXHRraGQAAAADAAAAAAAAAAAAAAABAAAAAAAAC7gAAAAAAAAAAAAAAAAAAAAAAAEAAAAAAAAAAAAAAAAAAAABAAAAAAAAAAAAAAAAAABAAAAAABAAAAAQAAAAAAAkZWR0cwAAABxlbHN0AAAAAAAAAAEAAAu4AACAAAABAAAAAAH/bWRpYQAAACBtZGhkAAAAAAAAAAAAAAAAAABAAAAAwABVxAAAAAAALWhkbHIAAAAAAAAAAHZpZGUAAAAAAAAAAAAAAABWaWRlb0hhbmRsZXIAAAABqm1pbmYAAAAUdm1oZAAAAAEAAAAAAAAAAAAAACRkaW5mAAAAHGRyZWYAAAAAAAAAAQAAAAx1cmwgAAAAAQAAAWpzdGJsAAAAvnN0c2QAAAAAAAAAAQAAAK5hdmMxAAAAAAAAAAEAAAAAAAAAAAAAAAAAAAAAABAAEABIAAAASAAAAAAAAAABFExhdmM2My4xLjEwMiBsaWJ4MjY0AAAAAAAAAAAAAAAAGP//AAAANGF2Y0MBZAAK/+EAF2dkAAqs2V7ARAAAAwAEAAADAAg8SJZYAQAGaOvjxMhM/fj4AAAAABBwYXNwAAAAAQAAAAEAAAAUYnRydAAAAAAAAAewAAAAAAAAABhzdHRzAAAAAAAAAAEAAAADAABAAAAAABRzdHNzAAAAAAAAAAEAAAABAAAAKGN0dHMAAAAAAAAAAwAAAAEAAIAAAAAAAQAAwAAAAAABAABAAAAAABxzdHNjAAAAAAAAAAEAAAABAAAAAwAAAAEAAAAgc3RzegAAAAAAAAAAAAAAAwAAAsgAAAANAAAADQAAABRzdGNvAAAAAAAAAAEAAAOMAAAAYXVkdGEAAABZbWV0YQAAAAAAAAAhaGRscgAAAAAAAAAAbWRpcmFwcGwAAAAAAAAAAAAAAAAsaWxzdAAAACSpdG9vAAAAHGRhdGEAAAABAAAAAExhdmY2My4xLjEwMgAAAAhmcmVlAAAC6m1kYXQAAAKvBgX//6vcRem95tlIt5Ys2CDZI+7veDI2NCAtIGNvcmUgMTY1IHIzMjIyIGIzNTYwNWEgLSBILjI2NC9NUEVHLTQgQVZDIGNvZGVjIC0gQ29weWxlZnQgMjAwMy0yMDI1IC0gaHR0cDovL3d3dy52aWRlb2xhbi5vcmcveDI2NC5odG1sIC0gb3B0aW9uczogY2FiYWM9MSByZWY9MyBkZWJsb2NrPTE6LTM6LTMgYW5hbHlzZT0weDM6MHgxMTMgbWU9aGV4IHN1Ym1lPTcgcHN5PTEgcHN5X3JkPTIuMDA6MC43MCBtaXhlZF9yZWY9MSBtZV9yYW5nZT0xNiBjaHJvbWFfbWU9MSB0cmVsbGlzPTEgOHg4ZGN0PTEgY3FtPTAgZGVhZHpvbmU9MjEsMTEgZmFzdF9wc2tpcD0xIGNocm9tYV9xcF9vZmZzZXQ9LTQgdGhyZWFkcz0xIGxvb2thaGVhZF90aHJlYWRzPTEgc2xpY2VkX3RocmVhZHM9MCBucj0wIGRlY2ltYXRlPTEgaW50ZXJsYWNlZD0wIGJsdXJheV9jb21wYXQ9MCBjb25zdHJhaW5lZF9pbnRyYT0wIGJmcmFtZXM9MyBiX3B5cmFtaWQ9MiBiX2FkYXB0PTEgYl9iaWFzPTAgZGlyZWN0PTEgd2VpZ2h0Yj0xIG9wZW5fZ29wPTAgd2VpZ2h0cD0yIGtleWludD0yNTAga2V5aW50X21pbj0xIHNjZW5lY3V0PTQwIGludHJhX3JlZnJlc2g9MCByY19sb29rYWhlYWQ9NDAgcmM9Y3JmIG1idHJlZT0xIGNyZj0yMy4wIHFjb21wPTAuNjAgcXBtaW49MCBxcG1heD02OSBxcHN0ZXA9NCBpcF9yYXRpbz0xLjQwIGFxPTE6MS4yMACAAAAAEWWIhAAXzn/+99S3zLLuByOBAAAACUGaImxBfOf+8AAAAAkBnkF5BfOfhoE="></video>
@@ -133,7 +158,7 @@ const wsUrl = relayId
   ? `${location.protocol === "https:" ? "wss" : "ws"}://${location.host}/relay/phone/${relayId}`
   : `ws://${location.hostname}:8141/`;
 const via = relayId ? "Internet" : "Tempatan";
-let lastMsg = 0;
+let lastMsg = 0, scripts = null, askedList = false;
 function connect() {
   ws = new WebSocket(wsUrl);
   ws.onopen = () => { $("conn").textContent = `Menunggu Mac · ${via}`; };
@@ -144,7 +169,9 @@ function connect() {
     lastMsg = performance.now();
     if (m.t === "layout") { layout = m; layoutVer = m.ver; return; }
     if (m.t === "mac") { $("dot").classList.toggle("on", !!m.on); $("conn").textContent = m.on ? `Bersambung · Mac · ${via}` : "Mac tidak dalam talian"; return; }
+    if (m.t === "scripts") { scripts = m; renderScripts(); return; }
     if (m.t === "state") {
+      if (!askedList) { askedList = true; send({cmd: "list_scripts"}); }
       st = m;
       $("dot").classList.add("on"); $("conn").textContent = `Bersambung · Mac · ${via}`;
       render();
@@ -167,8 +194,50 @@ function render() {
   $("icoPlay").style.display = run ? "none" : "";
   $("icoPause").style.display = run ? "" : "none";
   [...$("chips").children].forEach(b => b.classList.toggle("on", +b.dataset.v === st.def));
+  if (scripts && renderScripts.code !== st.code) renderScripts();
 }
-for (const v of [4, 5, 6, 7, 8]) {
+
+// ---------- script list (fetched by the Mac from tele.johorstudio.com)
+function ago(t) {
+  const d = Math.max(0, Date.now() / 1000 - t);
+  return d < 3600 ? `${Math.floor(d / 60)} min lalu` : d < 86400 ? `${Math.floor(d / 3600)} jam lalu` : `${Math.floor(d / 86400)} hari lalu`;
+}
+function renderScripts() {
+  const box = $("slist"), cur = st && st.code;
+  renderScripts.code = cur;
+  box.textContent = "";
+  if (scripts.error) {
+    const e = document.createElement("div"); e.className = "sempty"; e.textContent = "⚠ " + scripts.error; box.appendChild(e);
+  }
+  if (!scripts.items.length && !scripts.error) {
+    const e = document.createElement("div"); e.className = "sempty"; e.textContent = "Tiada skrip di server."; box.appendChild(e);
+  }
+  for (const it of scripts.items) {
+    const b = document.createElement("button");
+    b.className = "sitem" + (it.code === cur ? " on" : "");
+    const r1 = document.createElement("div"); r1.className = "r1";
+    const c = document.createElement("span"); c.className = "c"; c.textContent = it.code;
+    const tt = document.createElement("span"); tt.className = "tt"; tt.textContent = it.title;
+    r1.append(c, tt);
+    if (it.code === cur) { const n = document.createElement("span"); n.className = "now"; n.textContent = "Dipapar"; r1.appendChild(n); }
+    const sub = document.createElement("div"); sub.className = "sub";
+    sub.textContent = `${it.name} · ${it.chars} aksara · ${ago(it.updated)}`;
+    b.append(r1, sub);
+    b.onclick = () => {
+      if (it.code === cur) { toast("Skrip ini sedang dipapar"); return; }
+      if (!confirm(`Muat skrip ${it.code} — ${it.title}?\nSkrip di skrin sekarang akan diganti.`)) return;
+      buzz(); send({cmd: "load_script", code: it.code}); toast("Memuat skrip…");
+    };
+    box.appendChild(b);
+  }
+}
+$("slistbtn").onclick = () => { buzz(); send({cmd: "list_scripts"}); toast("Memuat senarai…"); };
+$("sreload").onclick = () => {
+  buzz();
+  if (!st || !st.code) { toast("Skrip semasa bukan dari server"); return; }
+  send({cmd: "reload_script"}); toast("Memuat semula skrip (posisi kekal)…");
+};
+for (const v of [6, 10, 16, 20]) {
   const b = document.createElement("button");
   b.textContent = v + "x"; b.dataset.v = v;
   b.onclick = () => { buzz(); send({cmd: "default_speed", v}); };

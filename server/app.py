@@ -322,7 +322,7 @@ class WS:
 
 
 def _session(sid):
-    return _relay.setdefault(sid, {"mac": None, "phones": set(), "layout": None, "state": None})
+    return _relay.setdefault(sid, {"mac": None, "phones": set(), "layout": None, "scripts": None, "state": None})
 
 
 def _tell_counts(s):
@@ -351,6 +351,8 @@ def relay_mac(ws, sid):
                     s["layout"] = msg
                 elif '"t":"state"' in kind:
                     s["state"] = msg
+                elif '"t":"scripts"' in kind:
+                    s["scripts"] = msg
                 else:
                     continue
                 phones = list(s["phones"])
@@ -374,7 +376,7 @@ def relay_phone(ws, sid, ip):
             ws.close()
             return
         s["phones"].add(ws)
-        first = [m for m in (s["layout"], s["state"]) if m]
+        first = [m for m in (s["layout"], s["scripts"], s["state"]) if m]
         _tell_counts(s)
     for m in first:
         ws.send(m)

@@ -44,6 +44,12 @@ pub enum Cmd {
     ScrollTo { y: f32 },
     /// Tap on the preview: glide the row at prompter y to the reading line.
     Jump { y: f32 },
+    /// Ask the app for the script list from tele.johorstudio.com.
+    ListScripts,
+    /// Load a script by its 6-digit code.
+    LoadScript { code: String },
+    /// Fetch the current script again (keeps the position).
+    ReloadScript,
 }
 
 #[derive(Default)]
@@ -51,6 +57,9 @@ pub struct Shared {
     pub state: String,
     pub layout: String,
     pub layout_ver: u64,
+    /// {"t":"scripts",…}: the server's script list, for the phone.
+    pub scripts: String,
+    pub scripts_ver: u64,
     pub cmds: Vec<Cmd>,
     pub local_clients: usize,
     pub relay_clients: usize,
@@ -96,18 +105,36 @@ fn handle_text(h: &Handle, t: &str) {
     }
 }
 
-/// What still has to go out on one connection: (layout if newer, state if changed).
-fn pending(h: &Handle, ver: &mut u64, state: &mut String) -> (Option<String>, Option<String>) {
+/// Per-connection record of what the phone already has.
+pub struct Sent {
+    layout: u64,
+    scripts: u64,
+    state: String,
+}
+
+impl Sent {
+    fn new() -> Self {
+        Self { layout: u64::MAX, scripts: 0, state: String::new() }
+    }
+}
+
+/// Messages still to go out on one connection (layout, scripts, state; in that order).
+fn pending(h: &Handle, s: &mut Sent) -> Vec<String> {
     let g = h.lock().unwrap();
-    let layout = (g.layout_ver != *ver && !g.layout.is_empty()).then(|| {
-        *ver = g.layout_ver;
-        g.layout.clone()
-    });
-    let st = (g.state != *state && !g.state.is_empty()).then(|| {
-        *state = g.state.clone();
-        g.state.clone()
-    });
-    (layout, st)
+    let mut out = Vec::new();
+    if g.layout_ver != s.layout && !g.layout.is_empty() {
+        s.layout = g.layout_ver;
+        out.push(g.layout.clone());
+    }
+    if g.scripts_ver != s.scripts && !g.scripts.is_empty() {
+        s.scripts = g.scripts_ver;
+        out.push(g.scripts.clone());
+    }
+    if g.state != s.state && !g.state.is_empty() {
+        s.state = g.state.clone();
+        out.push(g.state.clone());
+    }
+    out
 }
 
 // ------------------------------------------------------------------ local
@@ -164,7 +191,7 @@ fn ws_client(stream: TcpStream, h: Handle) {
     let _ = ws.get_ref().set_read_timeout(Some(Duration::from_millis(33)));
     h.lock().unwrap().local_clients += 1;
     repaint(&h);
-    let (mut ver, mut state) = (u64::MAX, String::new());
+    let mut sent = Sent::new();
     loop {
         match ws.read() {
             Ok(Message::Text(t)) => handle_text(&h, t.as_str()),
@@ -173,10 +200,7 @@ fn ws_client(stream: TcpStream, h: Handle) {
             Err(e) if is_timeout(&e) => {}
             Err(_) => break,
         }
-        let (layout, st) = pending(&h, &mut ver, &mut state);
-        let ok = layout.map_or(true, |l| ws.send(Message::text(l)).is_ok())
-            && st.map_or(true, |s| ws.send(Message::text(s)).is_ok());
-        if !ok {
+        if pending(&h, &mut sent).into_iter().any(|m| ws.send(Message::text(m)).is_err()) {
             break;
         }
     }
@@ -205,7 +229,7 @@ fn relay_loop(h: Handle) {
             };
             h.lock().unwrap().relay_ok = true;
             repaint(&h);
-            let (mut ver, mut state) = (u64::MAX, String::new());
+            let mut sent = Sent::new();
             let mut last_ping = Instant::now();
             loop {
                 if h.lock().unwrap().relay_gen != generation {
@@ -218,9 +242,7 @@ fn relay_loop(h: Handle) {
                     Err(e) if is_timeout(&e) => {}
                     Err(_) => break,
                 }
-                let (layout, st) = pending(&h, &mut ver, &mut state);
-                let mut ok = layout.map_or(true, |l| ws.send(Message::text(l)).is_ok())
-                    && st.map_or(true, |s| ws.send(Message::text(s)).is_ok());
+                let mut ok = !pending(&h, &mut sent).into_iter().any(|m| ws.send(Message::text(m)).is_err());
                 if ok && last_ping.elapsed() > Duration::from_secs(20) {
                     last_ping = Instant::now();
                     ok = ws.send(Message::Ping(Vec::new().into())).is_ok();
